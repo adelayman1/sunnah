@@ -931,6 +931,9 @@ function showShareImageModal(item, dataUrl, blob) {
     overlay.id = "share-modal-overlay";
     overlay.className = "share-modal-overlay";
 
+    const file = new File([blob], `sunnah-${item.id}.png`, { type: "image/png" });
+    const canNativeShare = Boolean(navigator.canShare && navigator.canShare({ files: [file] }));
+
     overlay.innerHTML = `
         <div class="share-modal-box">
             <div class="share-modal-header">
@@ -940,12 +943,26 @@ function showShareImageModal(item, dataUrl, blob) {
             <img class="share-card-img" src="${dataUrl}" alt="${item.title}" />
             <div class="share-modal-actions">
                 <a class="button primary" href="${dataUrl}" download="sunnah-${item.id}.png">تحميل الصورة 📥</a>
+                ${canNativeShare ? `<button class="button primary" id="share-native-btn" type="button">مشاركة الصورة 📲</button>` : ''}
                 <button class="button ghost" onclick="copySunnah('${item.id}'); closeShareModal();" type="button">نسخ النص 📋</button>
             </div>
         </div>
     `;
 
     document.body.appendChild(overlay);
+
+    if (canNativeShare) {
+        const nativeBtn = document.getElementById("share-native-btn");
+        if (nativeBtn) {
+            nativeBtn.addEventListener("click", () => {
+                navigator.share({
+                    title: item.title,
+                    text: `${item.title}\n${item.fullText || item.summary}`,
+                    files: [file]
+                }).catch(() => {});
+            });
+        }
+    }
 
     overlay.addEventListener("click", (e) => {
         if (e.target === overlay) {
@@ -970,17 +987,8 @@ async function shareSunnah(id) {
 
     try {
         const { blob, dataUrl } = await generateSunnahCardImage(item);
-        const file = new File([blob], `sunnah-${item.id}.png`, { type: "image/png" });
-
-        if (navigator.canShare && navigator.canShare({ files: [file] })) {
-            await navigator.share({
-                title: item.title,
-                text: `${item.title}\n${item.fullText || item.summary}`,
-                files: [file]
-            });
-        } else {
-            showShareImageModal(item, dataUrl, blob);
-        }
+        // Always show the preview modal overlay on ALL devices
+        showShareImageModal(item, dataUrl, blob);
     } catch (err) {
         console.error("Error generating share image:", err);
         copySunnah(id);
