@@ -1974,3 +1974,118 @@ body[data-theme="light"] .azkar-controls {
     flex: 1 1 0;
     min-width: 0;
 }
+
+/* =========================================================
+   PWA Install Banner & Tooltip
+   ========================================================= */
+.pwa-banner {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    z-index: 90;
+    display: flex;
+    align-items: center;
+    gap: 0.9rem;
+    padding: 0.95rem 1.3rem;
+    border-radius: 20px;
+    background: rgba(15, 23, 42, 0.94);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    border: 1px solid var(--line-strong);
+    box-shadow: 0 20px 48px rgba(0, 0, 0, 0.4);
+    max-width: min(460px, calc(100vw - 32px));
+    animation: fade-up 0.4s var(--ease-out-quart) both;
+}
+
+body[data-theme="light"] .pwa-banner {
+    background: rgba(255, 255, 255, 0.96);
+    box-shadow: 0 20px 48px rgba(0, 0, 0, 0.15);
+}
+
+.pwa-banner-icon {
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, var(--sky), var(--blue));
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    color: #fff;
+    font-size: 1.2rem;
+}
+
+.pwa-banner-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.pwa-banner-title {
+    display: block;
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: var(--text);
+    margin-bottom: 0.15rem;
+}
+
+.pwa-banner-desc {
+    display: block;
+    font-size: 0.82rem;
+    color: var(--muted);
+    line-height: 1.45;
+}
+
+.pwa-banner-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-shrink: 0;
+}
+
+.pwa-banner-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 38px;
+    padding: 0 0.9rem;
+    border-radius: 10px;
+    background: linear-gradient(135deg, var(--sky), var(--blue));
+    color: #ffffff;
+    font-weight: 700;
+    font-size: 0.85rem;
+    border: none;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: transform 0.2s ease;
+}
+
+.pwa-banner-btn:hover {
+    transform: translateY(-1px);
+}
+
+.pwa-banner-close {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: none;
+    background: var(--surface-soft);
+    color: var(--muted);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    transition: background 0.2s ease, color 0.2s ease;
+}
+
+.pwa-banner-close:hover {
+    background: var(--chip-active);
+    color: var(--text);
+}
+
+@media (max-width: 900px) {
+    .pwa-banner {
+        right: 50%;
+        transform: translateX(50%);
+        bottom: 16px;
+    }
+}
