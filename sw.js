@@ -1,4 +1,4 @@
-const CACHE_NAME = "sunan-pwa-v3";
+const CACHE_NAME = "sunan-pwa-v5";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -12,16 +12,7 @@ const APP_SHELL = [
   "./azkar.js",
   "./azkar-detail.js",
   "./theme.js",
-  "./pwa.js",
-  "./manifest.webmanifest",
-  "./icons/icon-192.png",
-  "./icons/icon-512.png",
-  "./icons/icon-maskable-512.png",
-  "./fonts/ThmanyahSans-Light.woff2",
-  "./fonts/ThmanyahSans-Regular.woff2",
-  "./fonts/ThmanyahSans-Medium.woff2",
-  "./fonts/ThmanyahSans-Bold.woff2",
-  "./fonts/ThmanyahSans-Black.woff2"
+  "./pwa.js"
 ];
 
 self.addEventListener("install", (event) => {
@@ -49,32 +40,30 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  if (event.request.mode === "navigate") {
-    event.respondWith(
-      fetch(event.request).catch(() =>
-        caches.match("./details-alt.html", { ignoreSearch: true }).then((response) =>
-          response || caches.match("./index.html")
-        )
-      )
-    );
+  const url = new URL(event.request.url);
+  if (url.origin !== self.location.origin) {
     return;
   }
 
   event.respondWith(
-    caches.match(event.request, { ignoreSearch: true }).then((cachedResponse) => {
-      if (cachedResponse) {
-        return cachedResponse;
-      }
-
-      return fetch(event.request)
-        .then((networkResponse) => {
-          const clonedResponse = networkResponse.clone();
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, clonedResponse);
-          });
-          return networkResponse;
+    fetch(event.request)
+      .then((networkResponse) => {
+        const clonedResponse = networkResponse.clone();
+        caches.open(CACHE_NAME).then((cache) => {
+          cache.put(event.request, clonedResponse);
+        });
+        return networkResponse;
+      })
+      .catch(() =>
+        caches.match(event.request, { ignoreSearch: true }).then((cachedResponse) => {
+          if (cachedResponse) {
+            return cachedResponse;
+          }
+          if (event.request.mode === "navigate") {
+            return caches.match("./index.html");
+          }
+          return Response.error();
         })
-        .catch(() => caches.match("./index.html"));
-    })
+      )
   );
 });

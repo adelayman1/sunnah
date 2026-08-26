@@ -58,46 +58,52 @@ if (!prefersReducedMotion && window.matchMedia("(hover: hover)").matches) {
   setGlue(targetX, targetY);
 }
 
-/* ---------- auto-hide bottom nav bar on scroll (mobile) ---------- */
-const navLinksEl = document.querySelector(".nav-links");
-const mobileNavQuery = window.matchMedia("(max-width: 900px)");
+/* ---------- mobile hamburger menu ---------- */
+const hamburgerBtn = document.getElementById("hamburger-btn");
+const navPanel = document.getElementById("mobile-nav-panel");
+const navOverlay = document.getElementById("mobile-nav-overlay");
+const navCloseBtn = document.getElementById("mobile-nav-close");
 
-if (navLinksEl) {
-  let lastScrollY = window.scrollY;
-  let ticking = false;
-
-  function setNavHidden(hidden) {
-    navLinksEl.classList.toggle("nav-hidden", hidden);
-    themeToggle?.classList.toggle("nav-hidden", hidden);
-  }
-
-  function handleScroll() {
-    const currentY = Math.max(window.scrollY, 0);
-
-    if (!mobileNavQuery.matches) {
-      setNavHidden(false);
-    } else if (currentY < 80) {
-      setNavHidden(false);
-    } else if (currentY > lastScrollY) {
-      setNavHidden(true);
-    } else if (currentY < lastScrollY) {
-      setNavHidden(false);
-    }
-
-    lastScrollY = currentY;
-    ticking = false;
-  }
-
-  window.addEventListener(
-    "scroll",
-    () => {
-      if (!ticking) {
-        requestAnimationFrame(handleScroll);
-        ticking = true;
-      }
-    },
-    { passive: true }
-  );
-
-  mobileNavQuery.addEventListener("change", () => setNavHidden(false));
+function openMobileNav() {
+  navPanel?.classList.add("open");
+  navOverlay?.classList.add("open");
+  document.body.style.overflow = "hidden";
 }
+
+function closeMobileNav() {
+  navPanel?.classList.remove("open");
+  navOverlay?.classList.remove("open");
+  document.body.style.overflow = "";
+}
+
+if (hamburgerBtn) {
+  hamburgerBtn.addEventListener("click", openMobileNav);
+}
+if (navCloseBtn) {
+  navCloseBtn.addEventListener("click", closeMobileNav);
+}
+if (navOverlay) {
+  navOverlay.addEventListener("click", closeMobileNav);
+}
+
+// Close mobile nav when clicking a nav link
+document.querySelectorAll(".mobile-nav-items .nav-link").forEach((link) => {
+  link.addEventListener("click", closeMobileNav);
+});
+
+/* ---------- mobile theme toggles ---------- */
+const mobileThemeToggle = document.getElementById("mobile-theme-toggle");
+const mobilePanelThemeToggle = document.getElementById("mobile-panel-theme-toggle");
+
+function handleMobileThemeToggle() {
+  const nextTheme = document.body.dataset.theme === "dark" ? "light" : "dark";
+  localStorage.setItem(storageKey, nextTheme);
+  applyTheme(nextTheme);
+}
+
+if (mobileThemeToggle) {
+  mobileThemeToggle.addEventListener("click", handleMobileThemeToggle);
+}
+if (mobilePanelThemeToggle) {
+  mobilePanelThemeToggle.addEventListener("click", handleMobileThemeToggle);
+}

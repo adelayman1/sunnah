@@ -595,7 +595,6 @@ const sunnahs = [{
     featured: true,
 },
 ];
-
 const categoryGrid = document.getElementById("category-grid");
 const featuredGrid = document.getElementById("featured-grid");
 const filtersContainer = document.getElementById("filters");
@@ -603,84 +602,777 @@ const cardsGrid = document.getElementById("cards-grid");
 
 let activeCategory = "all";
 
-function renderCategories() {
-    categoryGrid.innerHTML = categories
-        .map(
-            (category) => `
-        <article class="category-card">
-          <span>قسم</span>
-          <strong>${category.name}</strong>
-          <span>${category.count} عناصر تجريبية</span>
-        </article>
-      `
-        )
-        .join("");
+// ============================================================
+// Toast Notification
+// ============================================================
+
+function showToast(message) {
+    let toast = document.getElementById("app-toast");
+
+    if (!toast) {
+        toast = document.createElement("div");
+        toast.id = "app-toast";
+        toast.className = "toast-container";
+        document.body.appendChild(toast);
+    }
+
+    toast.textContent = message;
+    toast.classList.add("show");
+
+    setTimeout(() => {
+        toast.classList.remove("show");
+    }, 2800);
 }
 
-function cardTemplate(item, featured = false) {
-    const thumb = item.hasImage ?
-        `<div class="card-thumb" style="--thumb-bg:${item.thumb}; background-size: contain;"></div>` :
-        "";
 
-    return `
-    <article class="card ${featured ? "featured-card" : ""}">
-      ${thumb}
-      <div class="card-body">
-        <span class="card-meta">${item.categoryName}</span>
-        <h3>${item.title}</h3>
-        <p>${item.summary}</p>
-        <div class="card-footer">
-          <span>${item.hasImage ? "بطاقة بصورة" : "بطاقة نصية"}</span>
-          <div class="detail-switch">
-            <a class="read-more" href="details-alt.html?id=${item.id}">عرض التفاصيل</a>
-          </div>
-        </div>
-      </div>
-    </article>
-  `;
+// ============================================================
+// Favorites - LocalStorage
+// ============================================================
+
+const FAVORITES_KEY = "sunnah_favorites_v1";
+
+function getFavorites() {
+    try {
+        return JSON.parse(localStorage.getItem(FAVORITES_KEY)) || [];
+    } catch {
+        return [];
+    }
 }
 
-function renderFeatured() {
-    const featuredItems = sunnahs.filter((item) => item.featured).slice(0, 4);
-    featuredGrid.innerHTML = featuredItems.map((item) => cardTemplate(item, true)).join("");
+function isFavorite(id) {
+    return getFavorites().includes(id);
 }
 
-function renderFilters() {
-    const options = [{ id: "all", name: "الكل" }, ...categories];
-    filtersContainer.innerHTML = options
-        .map(
-            (option) => `
-        <button class="filter-chip ${option.id === activeCategory ? "active" : ""}" data-category="${option.id}">
-          ${option.name}
-        </button>
-      `
-        )
-        .join("");
+function toggleFavorite(id) {
+    let favs = getFavorites();
 
-    filtersContainer.querySelectorAll(".filter-chip").forEach((button) => {
-        button.addEventListener("click", () => {
-            activeCategory = button.dataset.category;
-            renderFilters();
-            renderCards();
-        });
-    });
+    if (favs.includes(id)) {
+        favs = favs.filter((fId) => fId !== id);
+        showToast("تمت إزالة السنة من المفضلة 🔖");
+    } else {
+        favs.push(id);
+        showToast("تمت إضافة السنة إلى المفضلة 🔖");
+    }
+
+    localStorage.setItem(FAVORITES_KEY, JSON.stringify(favs));
+
+    renderCards();
+    renderFeatured();
+    renderFilters();
 }
 
-function renderCards() {
-    const items =
-        activeCategory === "all" ?
-        sunnahs :
-        sunnahs.filter((item) => item.category === activeCategory);
+function copySunnah(id) {
+    const item = sunnahs.find((s) => s.id === id);
 
-    if (!items.length) {
-        cardsGrid.innerHTML = `<div class="empty-state">لا توجد عناصر في هذا القسم حاليًا.</div>`;
+    if (!item) return;
+
+    const contentText = item.fullText || item.summary || item.excerpt || "";
+
+    const textToCopy =
+        `${item.title}\n\n` +
+        `${contentText}\n\n` +
+        `المصدر: موقع السنن المهجورة`;
+
+    if (!navigator.clipboard) {
+        showToast("تعذر النسخ تلقائيًا");
         return;
     }
 
-    cardsGrid.innerHTML = items.map((item) => cardTemplate(item)).join("");
+    navigator.clipboard
+        .writeText(textToCopy)
+        .then(() => {
+            showToast("تم نسخ السنة بنجاح");
+        })
+        .catch(() => {
+            showToast("تعذر النسخ تلقائيًا");
+        });
 }
 
-renderCategories();
-renderFeatured();
-renderFilters();
-renderCards();
+// ============================================================
+// Canvas Image Card Generator for Share
+// ============================================================
+
+function wrapCanvasText(ctx, text, maxWidth) {
+    if (!text) return [];
+    const words = text.split(" ");
+    const lines = [];
+    let currentLine = "";
+
+    words.forEach((word) => {
+        const testLine = currentLine ? currentLine + " " + word : word;
+        const metrics = ctx.measureText(testLine);
+        if (metrics.width > maxWidth && currentLine) {
+            lines.push(currentLine);
+            currentLine = word;
+        } else {
+            currentLine = testLine;
+        }
+    });
+    if (currentLine) {
+        lines.push(currentLine);
+    }
+    return lines;
+}
+
+function generateSunnahCardImage(item) {
+    return new Promise((resolve) => {
+        const width = 1080;
+        const isLight = document.body.dataset.theme === "light";
+
+        // Full Hadith text priority: fullText > summary > excerpt
+        const fullHadithText = (item.fullText && item.fullText.trim() !== "")
+            ? item.fullText
+            : (item.summary || item.excerpt || "");
+
+        const chainText = (item.chain && item.chain.trim() !== "") ? item.chain : "";
+
+        // Measure text for dynamic height
+        const tempCanvas = document.createElement("canvas");
+        const tempCtx = tempCanvas.getContext("2d");
+        const cardW = width - 100; // 50px padding on each side
+        const textMaxWidth = cardW - 90;
+
+        tempCtx.font = "bold 44px 'ThmanyahSans', 'IBM Plex Sans Arabic', sans-serif";
+        const titleLines = wrapCanvasText(tempCtx, item.title || "", textMaxWidth);
+
+        tempCtx.font = "34px 'ThmanyahSans', 'IBM Plex Sans Arabic', sans-serif";
+        const textLines = wrapCanvasText(tempCtx, fullHadithText, textMaxWidth);
+
+        tempCtx.font = "28px 'ThmanyahSans', 'IBM Plex Sans Arabic', sans-serif";
+        const chainLines = chainText ? wrapCanvasText(tempCtx, "المصدر/السند: " + chainText, textMaxWidth) : [];
+
+        // Height calculation for complete full text
+        const titleHeight = titleLines.length * 56;
+        const textHeight = textLines.length * 52 + 50; // text lines + box padding
+        const chainHeight = chainLines.length ? (chainLines.length * 42 + 30) : 0;
+
+        let calculatedHeight = 180 + titleHeight + 30 + textHeight + chainHeight + 120;
+        const height = Math.max(1080, calculatedHeight);
+
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+
+        // 1. Background Gradient
+        const bgGrad = ctx.createLinearGradient(0, 0, 0, height);
+        if (isLight) {
+            bgGrad.addColorStop(0, "#f8fafc");
+            bgGrad.addColorStop(1, "#e2e8f0");
+        } else {
+            bgGrad.addColorStop(0, "#0b1226");
+            bgGrad.addColorStop(0.5, "#0f172a");
+            bgGrad.addColorStop(1, "#020617");
+        }
+        ctx.fillStyle = bgGrad;
+        ctx.fillRect(0, 0, width, height);
+
+        // Glow
+        const glow = ctx.createRadialGradient(width / 2, 220, 50, width / 2, 220, height * 0.6);
+        if (isLight) {
+            glow.addColorStop(0, "rgba(37, 99, 235, 0.12)");
+            glow.addColorStop(1, "transparent");
+        } else {
+            glow.addColorStop(0, "rgba(37, 99, 235, 0.28)");
+            glow.addColorStop(1, "transparent");
+        }
+        ctx.fillStyle = glow;
+        ctx.fillRect(0, 0, width, height);
+
+        // 2. Card Container
+        const padding = 50;
+        const cardH = height - padding * 2;
+        const cardX = padding;
+        const cardY = padding;
+
+        ctx.save();
+        ctx.beginPath();
+        if (ctx.roundRect) {
+            ctx.roundRect(cardX, cardY, cardW, cardH, 36);
+        } else {
+            ctx.rect(cardX, cardY, cardW, cardH);
+        }
+        ctx.fillStyle = isLight ? "rgba(255, 255, 255, 0.92)" : "rgba(15, 24, 43, 0.88)";
+        ctx.fill();
+
+        ctx.lineWidth = 3;
+        const borderGrad = ctx.createLinearGradient(cardX, cardY, cardX + cardW, cardY + cardH);
+        borderGrad.addColorStop(0, "rgba(96, 165, 250, 0.6)");
+        borderGrad.addColorStop(0.5, "rgba(37, 99, 235, 0.25)");
+        borderGrad.addColorStop(1, "rgba(96, 165, 250, 0.6)");
+        ctx.strokeStyle = borderGrad;
+        ctx.stroke();
+        ctx.restore();
+
+        // 3. Category Tag Badge
+        const catText = item.categoryName || "سنة مهجورة";
+        ctx.font = "bold 26px 'ThmanyahSans', 'IBM Plex Sans Arabic', sans-serif";
+        const catWidth = ctx.measureText(catText).width + 44;
+        const badgeX = cardX + cardW - catWidth - 40;
+        const badgeY = cardY + 45;
+        const badgeH = 44;
+
+        ctx.save();
+        ctx.beginPath();
+        if (ctx.roundRect) {
+            ctx.roundRect(badgeX, badgeY, catWidth, badgeH, 22);
+        } else {
+            ctx.rect(badgeX, badgeY, catWidth, badgeH);
+        }
+        ctx.fillStyle = isLight ? "rgba(37, 99, 235, 0.12)" : "rgba(37, 99, 235, 0.25)";
+        ctx.fill();
+        ctx.strokeStyle = "rgba(96, 165, 250, 0.4)";
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+
+        ctx.fillStyle = isLight ? "#1d4ed8" : "#93c5fd";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(catText, badgeX + catWidth / 2, badgeY + badgeH / 2 + 2);
+        ctx.restore();
+
+        // 4. Branding Top Left (NO SPARKLE EMOJI)
+        ctx.save();
+        ctx.fillStyle = isLight ? "#2563eb" : "#3b82f6";
+        ctx.font = "bold 32px 'ThmanyahSans', 'IBM Plex Sans Arabic', sans-serif";
+        ctx.textAlign = "left";
+        ctx.fillText("السنن المهجورة", cardX + 40, badgeY + badgeH / 2 + 2);
+        ctx.restore();
+
+        // Divider
+        ctx.strokeStyle = isLight ? "rgba(148, 163, 184, 0.3)" : "rgba(148, 163, 184, 0.2)";
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(cardX + 40, cardY + 115);
+        ctx.lineTo(cardX + cardW - 40, cardY + 115);
+        ctx.stroke();
+
+        // 5. Title
+        let currentY = cardY + 185;
+        ctx.fillStyle = isLight ? "#0f172a" : "#f8fafc";
+        ctx.font = "bold 44px 'ThmanyahSans', 'IBM Plex Sans Arabic', sans-serif";
+        ctx.textAlign = "right";
+
+        titleLines.forEach((line) => {
+            ctx.fillText(line, cardX + cardW - 40, currentY);
+            currentY += 56;
+        });
+
+        currentY += 20;
+
+        // 6. Hadith Text Container Box
+        const boxStartY = currentY - 10;
+        const boxPadding = 25;
+        const boxHeight = (textLines.length * 52) + boxPadding * 2;
+
+        ctx.save();
+        ctx.beginPath();
+        if (ctx.roundRect) {
+            ctx.roundRect(cardX + 30, boxStartY, cardW - 60, boxHeight, 20);
+        } else {
+            ctx.rect(cardX + 30, boxStartY, cardW - 60, boxHeight);
+        }
+        ctx.fillStyle = isLight ? "rgba(241, 245, 249, 0.7)" : "rgba(30, 41, 59, 0.5)";
+        ctx.fill();
+        ctx.strokeStyle = isLight ? "rgba(203, 213, 225, 0.6)" : "rgba(51, 65, 85, 0.6)";
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        ctx.restore();
+
+        // Full Hadith Text Render
+        currentY += boxPadding + 15;
+        ctx.font = "34px 'ThmanyahSans', 'IBM Plex Sans Arabic', sans-serif";
+        ctx.fillStyle = isLight ? "#1e293b" : "#e2e8f0";
+
+        textLines.forEach((line) => {
+            ctx.fillText(line, cardX + cardW - 55, currentY);
+            currentY += 52;
+        });
+
+        currentY = boxStartY + boxHeight + 35;
+
+        // 7. Chain / Source
+        if (chainLines.length) {
+            ctx.font = "28px 'ThmanyahSans', 'IBM Plex Sans Arabic', sans-serif";
+            ctx.fillStyle = isLight ? "#2563eb" : "#60a5fa";
+            chainLines.forEach((line) => {
+                ctx.fillText(line, cardX + cardW - 40, currentY);
+                currentY += 42;
+            });
+            currentY += 20;
+        }
+
+        // 8. Footer
+        const footerY = cardY + cardH - 45;
+        ctx.strokeStyle = isLight ? "rgba(148, 163, 184, 0.3)" : "rgba(148, 163, 184, 0.2)";
+        ctx.beginPath();
+        ctx.moveTo(cardX + 40, footerY - 35);
+        ctx.lineTo(cardX + cardW - 40, footerY - 35);
+        ctx.stroke();
+
+        ctx.font = "bold 26px 'ThmanyahSans', 'IBM Plex Sans Arabic', sans-serif";
+        ctx.fillStyle = isLight ? "#2563eb" : "#60a5fa";
+        ctx.textAlign = "center";
+        ctx.fillText("مشروع السنن المهجورة — شارك تؤجر 🌿", width / 2, footerY);
+
+        canvas.toBlob((blob) => {
+            resolve({ blob, dataUrl: canvas.toDataURL("image/png") });
+        }, "image/png");
+    });
+}
+
+function showShareImageModal(item, dataUrl, blob) {
+    let overlay = document.getElementById("share-modal-overlay");
+    if (overlay) {
+        overlay.remove();
+    }
+
+    overlay = document.createElement("div");
+    overlay.id = "share-modal-overlay";
+    overlay.className = "share-modal-overlay";
+
+    overlay.innerHTML = `
+        <div class="share-modal-box">
+            <div class="share-modal-header">
+                <h3>بطاقة المشاركة</h3>
+                <button class="share-modal-close" onclick="closeShareModal()" type="button" aria-label="إغلاق">✕</button>
+            </div>
+            <img class="share-card-img" src="${dataUrl}" alt="${item.title}" />
+            <div class="share-modal-actions">
+                <a class="button primary" href="${dataUrl}" download="sunnah-${item.id}.png">تحميل الصورة 📥</a>
+                <button class="button ghost" onclick="copySunnah('${item.id}'); closeShareModal();" type="button">نسخ النص 📋</button>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(overlay);
+
+    overlay.addEventListener("click", (e) => {
+        if (e.target === overlay) {
+            closeShareModal();
+        }
+    });
+}
+
+function closeShareModal() {
+    const overlay = document.getElementById("share-modal-overlay");
+    if (overlay) {
+        overlay.remove();
+    }
+}
+window.closeShareModal = closeShareModal;
+
+async function shareSunnah(id) {
+    const item = sunnahs.find((s) => s.id === id);
+    if (!item) return;
+
+    showToast("جاري تجهيز بطاقة الصورة...");
+
+    try {
+        const { blob, dataUrl } = await generateSunnahCardImage(item);
+        const file = new File([blob], `sunnah-${item.id}.png`, { type: "image/png" });
+
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+            await navigator.share({
+                title: item.title,
+                text: `${item.title}\n${item.fullText || item.summary}`,
+                files: [file]
+            });
+        } else {
+            showShareImageModal(item, dataUrl, blob);
+        }
+    } catch (err) {
+        console.error("Error generating share image:", err);
+        copySunnah(id);
+    }
+}
+
+
+// ============================================================
+// Global functions for inline HTML handlers
+// ============================================================
+
+window.toggleFavorite = toggleFavorite;
+window.copySunnah = copySunnah;
+window.shareSunnah = shareSunnah;
+
+
+// ============================================================
+// Categories
+// ============================================================
+
+function renderCategories() {
+    if (!categoryGrid) return;
+
+    categoryGrid.innerHTML = categories
+        .map(
+            (category) => `
+                <article
+                    class="category-card"
+                    data-category="${category.id}"
+                    onclick="setCategory('${category.id}')"
+                >
+                    <span>قسم</span>
+
+                    <strong>${category.name}</strong>
+
+                    <span>${category.count} عناصر</span>
+                </article>
+            `
+        )
+        .join("");
+}
+
+
+// ============================================================
+// تغيير القسم
+// ============================================================
+
+function setCategory(catId) {
+    activeCategory = catId;
+
+    renderFilters();
+    renderCards();
+
+    const allCards = document.getElementById("all-cards");
+
+    if (allCards) {
+        allCards.scrollIntoView({
+            behavior: "smooth",
+            block: "start"
+        });
+    }
+}
+
+window.setCategory = setCategory;
+
+
+// ============================================================
+// Card Template
+// ============================================================
+
+function cardTemplate(item, featured = false) {
+
+    const thumb = item.hasImage
+        ? `
+            <div
+                class="card-thumb"
+                style="
+                    --thumb-bg:${item.thumb};
+                    background-size:contain;
+                "
+            ></div>
+          `
+        : "";
+
+    const favClass = isFavorite(item.id)
+        ? "is-fav"
+        : "";
+
+    return `
+        <article class="card ${featured ? "featured-card" : ""}">
+
+            ${thumb}
+
+            <div class="card-body">
+
+                <div class="card-header-row">
+
+                    <span class="category-tag">
+                        ${item.categoryName || ""}
+                    </span>
+
+                    <button
+                        class="fav-btn ${favClass}"
+                        onclick="toggleFavorite('${item.id}')"
+                        title="حفظ في المفضلة"
+                        type="button"
+                    >
+                        <svg viewBox="0 0 24 24">
+                            <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
+                        </svg>
+                    </button>
+
+                </div>
+
+                <h3>
+                    ${item.title || ""}
+                </h3>
+
+                <p>
+                    ${item.summary || ""}
+                </p>
+
+                <div class="card-footer">
+
+                    <div class="card-action-btns">
+
+                        <button
+                            class="action-icon-btn"
+                            onclick="copySunnah('${item.id}')"
+                            title="نسخ النص"
+                            type="button"
+                        >
+                            <svg viewBox="0 0 24 24">
+                                <rect
+                                    x="9"
+                                    y="9"
+                                    width="13"
+                                    height="13"
+                                    rx="2"
+                                />
+                                <path
+                                    d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"
+                                />
+                            </svg>
+                        </button>
+
+                        <button
+                            class="action-icon-btn"
+                            onclick="shareSunnah('${item.id}')"
+                            title="مشاركة"
+                            type="button"
+                        >
+                            <svg viewBox="0 0 24 24">
+                                <circle cx="18" cy="5" r="3"/>
+                                <circle cx="6" cy="12" r="3"/>
+                                <circle cx="18" cy="19" r="3"/>
+
+                                <line
+                                    x1="8.59"
+                                    y1="13.51"
+                                    x2="15.42"
+                                    y2="17.49"
+                                />
+
+                                <line
+                                    x1="15.41"
+                                    y1="6.51"
+                                    x2="8.59"
+                                    y2="10.49"
+                                />
+                            </svg>
+                        </button>
+
+                    </div>
+
+                    <div class="detail-switch">
+
+                        <a
+                            class="read-more"
+                            href="details-alt.html?id=${encodeURIComponent(item.id)}"
+                        >
+                            عرض التفاصيل ←
+                        </a>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </article>
+    `;
+}
+
+
+// ============================================================
+// Featured
+// ============================================================
+
+function renderFeatured() {
+    if (!featuredGrid) return;
+
+    const featuredItems = sunnahs
+        .filter((item) => item.featured)
+        .slice(0, 4);
+
+    featuredGrid.innerHTML = featuredItems
+        .map((item) => cardTemplate(item, true))
+        .join("");
+}
+
+
+// ============================================================
+// Filters
+// ============================================================
+
+function renderFilters() {
+    if (!filtersContainer) return;
+
+    const favCount = getFavorites().length;
+
+    const options = [
+        {
+            id: "all",
+            name: "الكل"
+        },
+
+        {
+            id: "favorites",
+            name: `المفضلة 🔖 (${favCount})`
+        },
+
+        ...categories
+    ];
+
+    filtersContainer.innerHTML = options
+        .map(
+            (option) => `
+                <button
+                    type="button"
+                    class="filter-chip ${
+                        option.id === activeCategory
+                            ? "active"
+                            : ""
+                    }"
+                    data-category="${option.id}"
+                >
+                    ${option.name}
+                </button>
+            `
+        )
+        .join("");
+
+    filtersContainer
+        .querySelectorAll(".filter-chip")
+        .forEach((button) => {
+
+            button.addEventListener("click", () => {
+
+                activeCategory = button.dataset.category;
+
+                renderFilters();
+                renderCards();
+
+            });
+
+        });
+}
+
+
+// ============================================================
+// Cards
+// ============================================================
+
+function renderCards() {
+    if (!cardsGrid) return;
+
+    let items = sunnahs;
+
+    // ------------------------------------------
+    // الكل
+    // ------------------------------------------
+
+    if (activeCategory === "all") {
+
+        items = sunnahs;
+
+    }
+
+    // ------------------------------------------
+    // المفضلة
+    // ------------------------------------------
+
+    else if (activeCategory === "favorites") {
+
+        const favs = getFavorites();
+
+        items = sunnahs.filter((item) =>
+            favs.includes(item.id)
+        );
+
+    }
+
+    // ------------------------------------------
+    // قسم محدد
+    // ------------------------------------------
+
+    else {
+
+        items = sunnahs.filter(
+            (item) => item.category === activeCategory
+        );
+
+    }
+
+
+    // ------------------------------------------
+    // لا توجد عناصر
+    // ------------------------------------------
+
+    if (!items.length) {
+
+        if (activeCategory === "favorites") {
+
+            cardsGrid.innerHTML = `
+                <div class="empty-state">
+                    لم تقم بإضافة أي سنن إلى المفضلة بعد.
+                    <br>
+                    اضغط على رمز الإشارة المرجعية 🔖
+                    في أي سنة للحفظ هنا.
+                </div>
+            `;
+
+        } else {
+
+            cardsGrid.innerHTML = `
+                <div class="empty-state">
+                    لا توجد عناصر في هذا القسم حاليًا.
+                </div>
+            `;
+
+        }
+
+        return;
+    }
+
+
+    // ------------------------------------------
+    // عرض الكروت
+    // ------------------------------------------
+
+    cardsGrid.innerHTML = items
+        .map((item) => cardTemplate(item))
+        .join("");
+}
+
+
+// ============================================================
+// INIT
+// ============================================================
+
+function initPage() {
+
+    // مهم جدًا:
+    // نضمن أن الصفحة تبدأ دائمًا على "الكل"
+    activeCategory = "all";
+
+    renderCategories();
+
+    renderFeatured();
+
+    renderFilters();
+
+    // مهم جدًا:
+    // عرض جميع الكروت مباشرة عند فتح الصفحة
+    renderCards();
+}
+
+
+// ============================================================
+// تشغيل بعد تحميل DOM
+// ============================================================
+
+if (document.readyState === "loading") {
+
+    document.addEventListener(
+        "DOMContentLoaded",
+        initPage
+    );
+
+} else {
+
+    initPage();
+
+}

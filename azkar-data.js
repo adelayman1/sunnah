@@ -169,7 +169,7 @@ const azkarCategories = [
         "text": "أسْتَغْفِرُ اللهَ وَأتُوبُ إلَيْهِ",
         "repeat": 100,
         "extra": "",
-        "noteTitle": "الأجر المترتب\" type=\"success",
+        "noteTitle": "الأجر المترتب",
         "noteBody": "مائة حسنة، ومُحيت عنه مائة سيئة، وكانت له حرزاً من الشيطان حتى يمسى."
       }
     ]
@@ -609,5 +609,11 @@ const azkarCategories = [
     ]
   }
 ];
+if (typeof window !== "undefined") {
+    window.azkarCategories = azkarCategories;
+}
 
-if (typeof module !== "undefined") { module.exports = azkarCategories; }
+// دعم Node.js / CommonJS إن احتجته
+if (typeof module !== "undefined" && module.exports) {
+    module.exports = azkarCategories;
+}

@@ -650,60 +650,430 @@ const sunnahs = [{
 },
 ];
 
+// ============================================================
+// Toast Notification & Favorites for Detail Page
+// ============================================================
+const FAVORITES_KEY = "sunnah_favorites_v1";
+
+function getFavorites() {
+    try {
+        return JSON.parse(localStorage.getItem(FAVORITES_KEY)) || [];
+    } catch {
+        return [];
+    }
+}
+
+function showToast(message) {
+    let toast = document.getElementById("app-toast");
+    if (!toast) {
+        toast = document.createElement("div");
+        toast.id = "app-toast";
+        toast.className = "toast-container";
+        document.body.appendChild(toast);
+    }
+    toast.textContent = message;
+    toast.classList.add("show");
+    setTimeout(() => {
+        toast.classList.remove("show");
+    }, 2800);
+}
+
+function toggleSunnahFav(id) {
+    let favs = getFavorites();
+    if (favs.includes(id)) {
+        favs = favs.filter((fId) => fId !== id);
+        showToast("تمت إزالة السنة من المفضلة 🔖");
+    } else {
+        favs.push(id);
+        showToast("تمت إضافة السنة إلى المفضلة 🔖");
+    }
+    localStorage.setItem(FAVORITES_KEY, JSON.stringify(favs));
+    renderDetail();
+}
+window.toggleSunnahFav = toggleSunnahFav;
+
 const detailAltPage = document.getElementById("detail-alt-page");
 const params = new URLSearchParams(window.location.search);
 const id = params.get("id");
 const item = sunnahs.find((entry) => entry.id === id) || sunnahs[0];
 
-detailAltPage.innerHTML = `
-  <a class="back-link" href="index.html#all-cards">العودة إلى جميع السنن</a>
-  <div class="detail-switch">
-    <a class="switch-link active" href="details-alt.html?id=${item.id}">صفحة التفاصيل</a>
-  </div>
+function copySunnahDetail() {
+    if (!item) return;
+    const contentText = item.fullText || item.brief || "";
+    const textToCopy = `${item.title}\n\n${contentText}\n\nالمصدر: موقع السنن المهجورة`;
+    navigator.clipboard.writeText(textToCopy).then(() => {
+        showToast("تم نسخ نص السنة بنجاح");
+    }).catch(() => {
+        showToast("تعذر النسخ تلقائيًا");
+    });
+}
+window.copySunnahDetail = copySunnahDetail;
 
-  <section class="alt-hero">
-    <div class="alt-hero-box">
-      <div>
-        <div class="detail-meta">تصنيف رئيسي</div>
-        <h2>${item.categoryName}</h2>
-        <p>${item.tagline}</p>
+function wrapCanvasText(ctx, text, maxWidth) {
+    if (!text) return [];
+    const words = text.split(" ");
+    const lines = [];
+    let currentLine = "";
+
+    words.forEach((word) => {
+        const testLine = currentLine ? currentLine + " " + word : word;
+        const metrics = ctx.measureText(testLine);
+        if (metrics.width > maxWidth && currentLine) {
+            lines.push(currentLine);
+            currentLine = word;
+        } else {
+            currentLine = testLine;
+        }
+    });
+    if (currentLine) {
+        lines.push(currentLine);
+    }
+    return lines;
+}
+
+function generateSunnahCardImage(item) {
+    return new Promise((resolve) => {
+        const width = 1080;
+        const isLight = document.body.dataset.theme === "light";
+
+        // Priority: fullText > brief
+        const fullHadithText = (item.fullText && item.fullText.trim() !== "")
+            ? item.fullText
+            : (item.brief || "");
+
+        const chainText = (item.chain && item.chain.trim() !== "") ? item.chain : "";
+
+        // Measure text for dynamic height
+        const tempCanvas = document.createElement("canvas");
+        const tempCtx = tempCanvas.getContext("2d");
+        const cardW = width - 100;
+        const textMaxWidth = cardW - 90;
+
+        tempCtx.font = "bold 44px 'ThmanyahSans', 'IBM Plex Sans Arabic', sans-serif";
+        const titleLines = wrapCanvasText(tempCtx, item.title || "", textMaxWidth);
+
+        tempCtx.font = "34px 'ThmanyahSans', 'IBM Plex Sans Arabic', sans-serif";
+        const textLines = wrapCanvasText(tempCtx, fullHadithText, textMaxWidth);
+
+        tempCtx.font = "28px 'ThmanyahSans', 'IBM Plex Sans Arabic', sans-serif";
+        const chainLines = chainText ? wrapCanvasText(tempCtx, "المصدر/السند: " + chainText, textMaxWidth) : [];
+
+        // Dynamic height calculation
+        const titleHeight = titleLines.length * 56;
+        const textHeight = textLines.length * 52 + 50;
+        const chainHeight = chainLines.length ? (chainLines.length * 42 + 30) : 0;
+
+        let calculatedHeight = 180 + titleHeight + 30 + textHeight + chainHeight + 120;
+        const height = Math.max(1080, calculatedHeight);
+
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+
+        // 1. Background Gradient
+        const bgGrad = ctx.createLinearGradient(0, 0, 0, height);
+        if (isLight) {
+            bgGrad.addColorStop(0, "#f8fafc");
+            bgGrad.addColorStop(1, "#e2e8f0");
+        } else {
+            bgGrad.addColorStop(0, "#0b1226");
+            bgGrad.addColorStop(0.5, "#0f172a");
+            bgGrad.addColorStop(1, "#020617");
+        }
+        ctx.fillStyle = bgGrad;
+        ctx.fillRect(0, 0, width, height);
+
+        // Glow
+        const glow = ctx.createRadialGradient(width / 2, 220, 50, width / 2, 220, height * 0.6);
+        if (isLight) {
+            glow.addColorStop(0, "rgba(37, 99, 235, 0.12)");
+            glow.addColorStop(1, "transparent");
+        } else {
+            glow.addColorStop(0, "rgba(37, 99, 235, 0.28)");
+            glow.addColorStop(1, "transparent");
+        }
+        ctx.fillStyle = glow;
+        ctx.fillRect(0, 0, width, height);
+
+        // 2. Card Container
+        const padding = 50;
+        const cardH = height - padding * 2;
+        const cardX = padding;
+        const cardY = padding;
+
+        ctx.save();
+        ctx.beginPath();
+        if (ctx.roundRect) {
+            ctx.roundRect(cardX, cardY, cardW, cardH, 36);
+        } else {
+            ctx.rect(cardX, cardY, cardW, cardH);
+        }
+        ctx.fillStyle = isLight ? "rgba(255, 255, 255, 0.92)" : "rgba(15, 24, 43, 0.88)";
+        ctx.fill();
+
+        ctx.lineWidth = 3;
+        const borderGrad = ctx.createLinearGradient(cardX, cardY, cardX + cardW, cardY + cardH);
+        borderGrad.addColorStop(0, "rgba(96, 165, 250, 0.6)");
+        borderGrad.addColorStop(0.5, "rgba(37, 99, 235, 0.25)");
+        borderGrad.addColorStop(1, "rgba(96, 165, 250, 0.6)");
+        ctx.strokeStyle = borderGrad;
+        ctx.stroke();
+        ctx.restore();
+
+        // 3. Category Tag Badge
+        const catText = item.categoryName || "سنة مهجورة";
+        ctx.font = "bold 26px 'ThmanyahSans', 'IBM Plex Sans Arabic', sans-serif";
+        const catWidth = ctx.measureText(catText).width + 44;
+        const badgeX = cardX + cardW - catWidth - 40;
+        const badgeY = cardY + 45;
+        const badgeH = 44;
+
+        ctx.save();
+        ctx.beginPath();
+        if (ctx.roundRect) {
+            ctx.roundRect(badgeX, badgeY, catWidth, badgeH, 22);
+        } else {
+            ctx.rect(badgeX, badgeY, catWidth, badgeH);
+        }
+        ctx.fillStyle = isLight ? "rgba(37, 99, 235, 0.12)" : "rgba(37, 99, 235, 0.25)";
+        ctx.fill();
+        ctx.strokeStyle = "rgba(96, 165, 250, 0.4)";
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+
+        ctx.fillStyle = isLight ? "#1d4ed8" : "#93c5fd";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(catText, badgeX + catWidth / 2, badgeY + badgeH / 2 + 2);
+        ctx.restore();
+
+        // 4. Branding Top Left (NO SPARKLE EMOJI)
+        ctx.save();
+        ctx.fillStyle = isLight ? "#2563eb" : "#3b82f6";
+        ctx.font = "bold 32px 'ThmanyahSans', 'IBM Plex Sans Arabic', sans-serif";
+        ctx.textAlign = "left";
+        ctx.fillText("السنن المهجورة", cardX + 40, badgeY + badgeH / 2 + 2);
+        ctx.restore();
+
+        // Divider
+        ctx.strokeStyle = isLight ? "rgba(148, 163, 184, 0.3)" : "rgba(148, 163, 184, 0.2)";
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(cardX + 40, cardY + 115);
+        ctx.lineTo(cardX + cardW - 40, cardY + 115);
+        ctx.stroke();
+
+        // 5. Title
+        let currentY = cardY + 185;
+        ctx.fillStyle = isLight ? "#0f172a" : "#f8fafc";
+        ctx.font = "bold 44px 'ThmanyahSans', 'IBM Plex Sans Arabic', sans-serif";
+        ctx.textAlign = "right";
+
+        titleLines.forEach((line) => {
+            ctx.fillText(line, cardX + cardW - 40, currentY);
+            currentY += 56;
+        });
+
+        currentY += 20;
+
+        // 6. Hadith Text Container Box
+        const boxStartY = currentY - 10;
+        const boxPadding = 25;
+        const boxHeight = (textLines.length * 52) + boxPadding * 2;
+
+        ctx.save();
+        ctx.beginPath();
+        if (ctx.roundRect) {
+            ctx.roundRect(cardX + 30, boxStartY, cardW - 60, boxHeight, 20);
+        } else {
+            ctx.rect(cardX + 30, boxStartY, cardW - 60, boxHeight);
+        }
+        ctx.fillStyle = isLight ? "rgba(241, 245, 249, 0.7)" : "rgba(30, 41, 59, 0.5)";
+        ctx.fill();
+        ctx.strokeStyle = isLight ? "rgba(203, 213, 225, 0.6)" : "rgba(51, 65, 85, 0.6)";
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        ctx.restore();
+
+        // Full Hadith Text Render
+        currentY += boxPadding + 15;
+        ctx.font = "34px 'ThmanyahSans', 'IBM Plex Sans Arabic', sans-serif";
+        ctx.fillStyle = isLight ? "#1e293b" : "#e2e8f0";
+
+        textLines.forEach((line) => {
+            ctx.fillText(line, cardX + cardW - 55, currentY);
+            currentY += 52;
+        });
+
+        currentY = boxStartY + boxHeight + 35;
+
+        // 7. Chain / Source
+        if (chainLines.length) {
+            ctx.font = "28px 'ThmanyahSans', 'IBM Plex Sans Arabic', sans-serif";
+            ctx.fillStyle = isLight ? "#2563eb" : "#60a5fa";
+            chainLines.forEach((line) => {
+                ctx.fillText(line, cardX + cardW - 40, currentY);
+                currentY += 42;
+            });
+            currentY += 20;
+        }
+
+        // 8. Footer
+        const footerY = cardY + cardH - 45;
+        ctx.strokeStyle = isLight ? "rgba(148, 163, 184, 0.3)" : "rgba(148, 163, 184, 0.2)";
+        ctx.beginPath();
+        ctx.moveTo(cardX + 40, footerY - 35);
+        ctx.lineTo(cardX + cardW - 40, footerY - 35);
+        ctx.stroke();
+
+        ctx.font = "bold 26px 'ThmanyahSans', 'IBM Plex Sans Arabic', sans-serif";
+        ctx.fillStyle = isLight ? "#2563eb" : "#60a5fa";
+        ctx.textAlign = "center";
+        ctx.fillText("مشروع السنن المهجورة — شارك تؤجر 🌿", width / 2, footerY);
+
+        canvas.toBlob((blob) => {
+            resolve({ blob, dataUrl: canvas.toDataURL("image/png") });
+        }, "image/png");
+    });
+}
+
+function showShareImageModalDetail(item, dataUrl) {
+    let overlay = document.getElementById("share-modal-overlay");
+    if (overlay) {
+        overlay.remove();
+    }
+
+    overlay = document.createElement("div");
+    overlay.id = "share-modal-overlay";
+    overlay.className = "share-modal-overlay";
+
+    overlay.innerHTML = `
+        <div class="share-modal-box">
+            <div class="share-modal-header">
+                <h3>بطاقة المشاركة</h3>
+                <button class="share-modal-close" onclick="closeShareModal()" type="button" aria-label="إغلاق">✕</button>
+            </div>
+            <img class="share-card-img" src="${dataUrl}" alt="${item.title}" />
+            <div class="share-modal-actions">
+                <a class="button primary" href="${dataUrl}" download="sunnah-${item.id}.png">تحميل الصورة 📥</a>
+                <button class="button ghost" onclick="copySunnahDetail(); closeShareModal();" type="button">نسخ النص 📋</button>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(overlay);
+
+    overlay.addEventListener("click", (e) => {
+        if (e.target === overlay) {
+            closeShareModal();
+        }
+    });
+}
+
+function closeShareModal() {
+    const overlay = document.getElementById("share-modal-overlay");
+    if (overlay) {
+        overlay.remove();
+    }
+}
+window.closeShareModal = closeShareModal;
+
+async function shareSunnahDetail() {
+    if (!item) return;
+
+    showToast("جاري تجهيز بطاقة الصورة...");
+
+    try {
+        const { blob, dataUrl } = await generateSunnahCardImage(item);
+        const file = new File([blob], `sunnah-${item.id}.png`, { type: "image/png" });
+
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+            await navigator.share({
+                title: item.title,
+                text: `${item.title}\n${item.fullText || item.brief}`,
+                files: [file]
+            });
+        } else {
+            showShareImageModalDetail(item, dataUrl);
+        }
+    } catch (err) {
+        console.error("Error generating share image:", err);
+        copySunnahDetail();
+    }
+}
+window.shareSunnahDetail = shareSunnahDetail;
+
+function renderDetail() {
+    if (!detailAltPage || !item) return;
+
+    const favs = getFavorites();
+    const isFav = favs.includes(item.id);
+    const favClass = isFav ? "is-fav" : "";
+
+    // Show full text card if fullText exists and differs from brief
+    const hasFullText = item.fullText && item.fullText.trim() !== "" && item.fullText.trim() !== (item.brief || "").trim();
+    // Show chain if present and not placeholder
+    const hasChain = item.chain && item.chain.trim() !== "";
+    // Show related if array is not empty
+    const hasRelated = Array.isArray(item.related) && item.related.length > 0;
+
+    detailAltPage.innerHTML = `
+      <a class="back-link" href="index.html#all-cards">← العودة إلى قائمة السنن</a>
+
+      <div class="sunnah-detail-wrapper">
+        <!-- Header -->
+        <header class="sunnah-detail-header">
+          <div class="sunnah-detail-meta">
+            <span class="category-tag">${item.categoryName || "سُنّة نبوية"}</span>
+            <div class="sunnah-header-actions">
+              <button class="fav-btn ${favClass}" onclick="toggleSunnahFav('${item.id}')" title="حفظ في المفضلة" type="button">
+                <svg viewBox="0 0 24 24"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+              </button>
+              <button class="action-icon-btn" onclick="copySunnahDetail()" title="نسخ النص" type="button">
+                <svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              </button>
+              <button class="action-icon-btn" onclick="shareSunnahDetail()" title="مشاركة" type="button">
+                <svg viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+              </button>
+            </div>
+          </div>
+          <h1 class="sunnah-detail-title">${item.title}</h1>
+        </header>
+
+        <!-- Brief Box -->
+        ${item.brief ? `
+        <section class="sunnah-brief-card">
+          <span class="brief-badge">مختصر</span>
+          <p class="brief-text">${item.brief}</p>
+        </section>
+        ` : ''}
+
+        <!-- Details Grid -->
+        <div class="sunnah-sections-grid">
+          ${hasFullText ? `
+          <article class="alt-grid-card">
+            <h3> الحديث والنص الكامل</h3>
+            <div class="detail-text soft">${item.fullText}</div>
+          </article>
+          ` : ''}
+
+          ${hasChain ? `
+          <article class="alt-grid-card">
+            <h3>المصدر</h3>
+            <div class="detail-text soft">${item.chain}</div>
+          </article>
+          ` : ''}
+
+          ${hasRelated ? `
+          <article class="alt-grid-card">
+            <h3>🔗 سنن ذات صلة</h3>
+            <div class="detail-text soft">${item.related.map(r => `• ${r}`).join("<br>")}</div>
+          </article>
+          ` : ''}
+        </div>
       </div>
-      <div class="alt-logo">س</div>
-    </div>
+    `;
+}
 
-    <div class="alt-copy">
-      <div class="alt-breadcrumbs">
-        <span>الرئيسية</span>
-        <span>›</span>
-        <span>${item.categoryName}</span>
-      </div>
-      <h1>${item.title}</h1>
-      <p>${item.brief}</p>
-      <div class="alt-hero-actions">
-        ${item.quickLinks.map((link) => `<a class="pill-link" href="#content">${link}</a>`).join("")}
-      </div>
-    </div>
-  </section>
-
-  <section class="alt-content" id="content">
-
-    <div class="alt-sections">
-      <article class="alt-grid-card">
-        <h3>شرح مختصر</h3>
-        <div class="detail-text soft">${item.brief}</div>
-      </article>
-      <article class="alt-grid-card">
-        <h3>النص الكامل</h3>
-        <div class="detail-text soft">${item.fullText}</div>
-      </article>
-      <article class="alt-grid-card">
-        <h3>السند</h3>
-        <div class="detail-text soft">${item.chain}</div>
-      </article>
-      <article class="alt-grid-card">
-        <h3>سنن مشابهة</h3>
-        <div class="detail-text soft">${item.related.join("<br>")}</div>
-      </article>
-    </div>
-  </section>
-`;
+renderDetail();
