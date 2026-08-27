@@ -3,20 +3,52 @@ const themeLabel = themeToggle?.querySelector(".theme-toggle-text");
 const storageKey = "sunnah-theme";
 const savedTheme = localStorage.getItem(storageKey) || "dark";
 
-function applyTheme(theme) {
-  document.body.dataset.theme = theme;
+let isAnimating = false;
+
+function applyTheme(theme, animate = false, event = null) {
   if (themeLabel) {
     themeLabel.textContent = theme === "dark" ? "الوضع الفاتح" : "الوضع الداكن";
+  }
+
+  if (animate && event && !isAnimating) {
+    isAnimating = true;
+
+    const x = event.clientX;
+    const y = event.clientY;
+    const color = theme === "dark" ? "#020617" : "#f8fafc";
+
+    const wipe = document.createElement("div");
+    wipe.className = "theme-wipe";
+    wipe.style.background = color;
+    wipe.style.clipPath = `circle(0% at ${x}px ${y}px)`;
+    document.body.appendChild(wipe);
+
+    wipe.offsetHeight;
+
+    wipe.style.transition = "clip-path 0.5s cubic-bezier(0.3, 0, 0.35, 1)";
+    wipe.style.clipPath = `circle(150% at ${x}px ${y}px)`;
+
+    setTimeout(() => {
+      document.body.dataset.theme = theme;
+      wipe.style.transition = "opacity 0.3s ease";
+      wipe.style.opacity = "0";
+      setTimeout(() => {
+        wipe.remove();
+        isAnimating = false;
+      }, 300);
+    }, 500);
+  } else {
+    document.body.dataset.theme = theme;
   }
 }
 
 applyTheme(savedTheme);
 
 if (themeToggle) {
-  themeToggle.addEventListener("click", () => {
+  themeToggle.addEventListener("click", (e) => {
     const nextTheme = document.body.dataset.theme === "dark" ? "light" : "dark";
     localStorage.setItem(storageKey, nextTheme);
-    applyTheme(nextTheme);
+    applyTheme(nextTheme, true, e);
   });
 }
 
@@ -95,10 +127,10 @@ document.querySelectorAll(".mobile-nav-items .nav-link").forEach((link) => {
 const mobileThemeToggle = document.getElementById("mobile-theme-toggle");
 const mobilePanelThemeToggle = document.getElementById("mobile-panel-theme-toggle");
 
-function handleMobileThemeToggle() {
+function handleMobileThemeToggle(e) {
   const nextTheme = document.body.dataset.theme === "dark" ? "light" : "dark";
   localStorage.setItem(storageKey, nextTheme);
-  applyTheme(nextTheme);
+  applyTheme(nextTheme, true, e);
 }
 
 if (mobileThemeToggle) {
@@ -106,4 +138,4 @@ if (mobileThemeToggle) {
 }
 if (mobilePanelThemeToggle) {
   mobilePanelThemeToggle.addEventListener("click", handleMobileThemeToggle);
-}
+}

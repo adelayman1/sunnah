@@ -1737,6 +1737,16 @@ body {
     }
 }
 
+/* =========================================================
+   Theme switch — circle wipe overlay
+   ========================================================= */
+.theme-wipe {
+    position: fixed;
+    inset: 0;
+    z-index: 99999;
+    pointer-events: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
     *,
     *::before,
