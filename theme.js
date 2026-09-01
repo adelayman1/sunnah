@@ -1,13 +1,23 @@
 const themeToggle = document.getElementById("theme-toggle");
-const themeLabel = themeToggle?.querySelector(".theme-toggle-text");
+const themeLabels = document.querySelectorAll(".theme-toggle-text");
+const mobileThemeIcon = document.querySelector("#mobile-theme-toggle svg");
 const storageKey = "sunnah-theme";
 const savedTheme = localStorage.getItem(storageKey) || "dark";
 
 let isAnimating = false;
 
+const themeIcons = {
+  dark: '<path d="M21 12.79A9 9 0 0 1 11.21 3 7 7 0 1 0 21 12.79z"/>',
+  light:
+    '<circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2m-15.07-5.93L4.22 6.22m15.56 15.56-1.71-1.71M18.78 4.22l-1.71 1.71M4.22 17.78l1.71-1.71"/>',
+};
+
 function applyTheme(theme, animate = false, event = null) {
-  if (themeLabel) {
-    themeLabel.textContent = theme === "dark" ? "الوضع الفاتح" : "الوضع الداكن";
+  themeLabels.forEach((label) => {
+    label.textContent = theme === "dark" ? "الوضع الفاتح" : "الوضع الداكن";
+  });
+  if (mobileThemeIcon) {
+    mobileThemeIcon.innerHTML = themeIcons[theme];
   }
 
   if (animate && event && !isAnimating) {
