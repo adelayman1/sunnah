@@ -726,10 +726,10 @@ function toggleSunnahFav(id) {
     let favs = getFavorites();
     if (favs.includes(id)) {
         favs = favs.filter((fId) => fId !== id);
-        showToast("تمت إزالة السنة من المفضلة 🔖");
+        showToast("تمت إزالة السنة من المحفوظات ");
     } else {
         favs.push(id);
-        showToast("تمت إضافة السنة إلى المفضلة 🔖");
+        showToast("تمت إضافة السنة إلى المحفوظات ");
     }
     localStorage.setItem(FAVORITES_KEY, JSON.stringify(favs));
     renderDetail();
@@ -1078,7 +1078,7 @@ function renderDetail() {
           <div class="sunnah-detail-meta">
             <span class="category-tag">${item.categoryName || "سُنّة نبوية"}</span>
             <div class="sunnah-header-actions">
-              <button class="fav-btn ${favClass}" onclick="toggleSunnahFav('${item.id}')" title="حفظ في المفضلة" type="button">
+              <button class="fav-btn ${favClass}" onclick="toggleSunnahFav('${item.id}')" title="حفظ في المحفوظات" type="button">
                 <svg viewBox="0 0 24 24"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
               </button>
               <button class="action-icon-btn" onclick="copySunnahDetail()" title="نسخ النص" type="button">

@@ -113,7 +113,7 @@ const sunnahs = [{
         categoryName: "سنن المناسبات",
         summary: "السنة عند إخراج نواة التمر من الفم وضعه بين ظاهر الأصبعين السبابة والوسطى وليس بباطن اليد",
         hasImage: true,
-        thumb: "linear-gradient(135deg, #2563eb, #0f172a), radial-gradient(circle at top right, #93c5fd, transparent 45%)",
+        thumb: "url('images/image1.png') center/cover no-repeat",
         excerpt: "excerpt",
         fullText: "النص الكامل",
         featured: true
@@ -1270,7 +1270,7 @@ function renderFilters() {
 
         {
             id: "favorites",
-            name: `المفضلة 🔖 (${favCount})`
+            name: `المحفوظات 🔖 (${favCount})`
         },
 
         ...categories
@@ -1367,7 +1367,7 @@ function renderCards() {
 
             cardsGrid.innerHTML = `
                 <div class="empty-state">
-                    لم تقم بإضافة أي سنن إلى المفضلة بعد.
+                    لم تقم بإضافة أي سنن إلى المحفوظات بعد.
                     <br>
                     اضغط على رمز الإشارة المرجعية 🔖
                     في أي سنة للحفظ هنا.
