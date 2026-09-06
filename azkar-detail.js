@@ -10,6 +10,8 @@ let total = 0;
 let currentIndex = 0;
 let currentCount = 0;
 
+const isMobileAzkarList = window.matchMedia("(max-width: 900px)").matches;
+
 try {
     // ============================================================
     // قراءة القسم من الرابط
@@ -76,6 +78,201 @@ try {
         total = azkarCategory.items.length;
 
         // ========================================================
+        // عرض الهاتف: قائمة تفقّدية لكل الأذكار مع تبويبات الأقسام
+        // ========================================================
+
+        function renderMobileChecklist() {
+            let activeCatId = azkarCategory.id;
+            const counts = {};
+
+            function getCounts(id) {
+                const cat = categories.find(function (c) {
+                    return c.id === id;
+                });
+                if (!counts[id]) {
+                    counts[id] = new Array(cat.items.length).fill(0);
+                }
+                return counts[id];
+            }
+
+            function showMobileToast(message) {
+                let toast = document.getElementById("app-toast");
+                if (!toast) {
+                    toast = document.createElement("div");
+                    toast.id = "app-toast";
+                    toast.className = "toast-container";
+                    document.body.appendChild(toast);
+                }
+                toast.textContent = message;
+                toast.classList.add("show");
+                clearTimeout(showMobileToast._t);
+                showMobileToast._t = setTimeout(function () {
+                    toast.classList.remove("show");
+                }, 1600);
+            }
+
+            function vibrate(pattern) {
+                if (navigator.vibrate) {
+                    try {
+                        navigator.vibrate(pattern);
+                    } catch (e) {}
+                }
+            }
+
+            function activeCategory() {
+                return categories.find(function (c) {
+                    return c.id === activeCatId;
+                });
+            }
+
+            function renderSteps() {
+                const cat = activeCategory();
+                const arr = getCounts(activeCatId);
+                const stepsEl = document.getElementById("azkar-steps");
+                if (!stepsEl) return;
+                stepsEl.innerHTML = "";
+
+                cat.items.forEach(function (item, idx) {
+                    const repeat = Number(item.repeat) || 1;
+                    const isDone = arr[idx] >= repeat;
+
+                    const stepDiv = document.createElement("div");
+                    stepDiv.className = "azkar-step" + (isDone ? " done" : "");
+
+                    const badge = document.createElement("div");
+                    badge.className = "azkar-step-badge";
+                    badge.textContent = isDone ? "✓" : String(Math.max(repeat - arr[idx], 0));
+                    stepDiv.appendChild(badge);
+
+                    const card = document.createElement("div");
+                    card.className = "azkar-step-card";
+
+                    const p = document.createElement("p");
+                    p.className = "azkar-step-text";
+                    p.textContent = item.text || "";
+                    card.appendChild(p);
+
+                    if (item.extra) {
+                        const ex = document.createElement("div");
+                        ex.className = "azkar-step-extra";
+                        ex.textContent = item.extra;
+                        card.appendChild(ex);
+                    }
+
+                    if (item.noteBody) {
+                        const note = document.createElement("div");
+                        note.className = "azkar-step-note";
+                        const nt = document.createElement("p");
+                        nt.className = "azkar-step-note-title";
+                        nt.textContent = (item.noteTitle || "ملاحظة") + ":";
+                        note.appendChild(nt);
+                        const nb = document.createElement("div");
+                        nb.textContent = item.noteBody;
+                        note.appendChild(nb);
+                        card.appendChild(note);
+                    }
+
+                    card.addEventListener("click", function () {
+                        if (arr[idx] >= repeat) return;
+                        arr[idx] += 1;
+                        vibrate(22);
+                        if (arr[idx] >= repeat) {
+                            vibrate([30, 40, 30]);
+                            showMobileToast("أكملت الذِّكر ✓");
+                        }
+                        renderSteps();
+                        updateProgress();
+                    });
+
+                    stepDiv.appendChild(card);
+                    stepsEl.appendChild(stepDiv);
+                });
+            }
+
+            function updateProgress() {
+                const cat = activeCategory();
+                const arr = counts[activeCatId];
+                let done = 0;
+                cat.items.forEach(function (item, idx) {
+                    const repeat = Number(item.repeat) || 1;
+                    if (arr[idx] >= repeat) done++;
+                });
+                const catTotal = cat.items.length;
+                const pct = catTotal ? Math.round((done / catTotal) * 100) : 0;
+                const fill = document.getElementById("azkar-list-progress-fill");
+                const label = document.getElementById("azkar-list-progress-label");
+                if (fill) fill.style.width = pct + "%";
+                if (label) label.textContent = done + " / " + catTotal;
+            }
+
+            function renderShell() {
+                const cat = activeCategory();
+
+                azkarDetailPage.innerHTML = `
+                    <a class="back-link" href="azkar.html">العودة إلى الأذكار</a>
+
+                    <section class="azkar-detail-head azkar-list-page">
+                        <h1>${cat.title}</h1>
+                        <div class="azkar-list-tabs" id="azkar-list-tabs"></div>
+                        <div class="azkar-list-progress">
+                            <div class="azkar-progress-track">
+                                <div class="azkar-progress-fill" id="azkar-list-progress-fill"></div>
+                            </div>
+                            <div class="azkar-list-progress-row">
+                                <span id="azkar-list-progress-label">0 / 0</span>
+                                <button class="azkar-list-reset" id="azkar-list-reset" type="button">إعادة تعيين هذا القسم</button>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section>
+                        <div class="azkar-steps" id="azkar-steps"></div>
+                        <p class="azkar-list-hint">اضغط على الذكر لعدّ التكرار</p>
+                    </section>
+                `;
+
+                const tabsEl = document.getElementById("azkar-list-tabs");
+                tabsEl.innerHTML = categories
+                    .map(function (c) {
+                        return (
+                            '<button type="button" class="azkar-list-tab' +
+                            (c.id === activeCatId ? " active" : "") +
+                            '" data-cat="' +
+                            c.id +
+                            '">' +
+                            c.title +
+                            "</button>"
+                        );
+                    })
+                    .join("");
+
+                tabsEl.querySelectorAll(".azkar-list-tab").forEach(function (btn) {
+                    btn.addEventListener("click", function () {
+                        if (btn.dataset.cat === activeCatId) return;
+                        activeCatId = btn.dataset.cat;
+                        renderShell();
+                    });
+                });
+
+                const resetBtn = document.getElementById("azkar-list-reset");
+                if (resetBtn) {
+                    resetBtn.addEventListener("click", function () {
+                        if (!window.confirm("هل تريد إعادة تعيين عدّاد هذا القسم؟")) return;
+                        const c = activeCategory();
+                        counts[activeCatId] = new Array(c.items.length).fill(0);
+                        renderSteps();
+                        updateProgress();
+                    });
+                }
+
+                renderSteps();
+                updateProgress();
+            }
+
+            renderShell();
+        }
+
+        // ========================================================
         // إذا كان القسم فارغًا
         // ========================================================
 
@@ -92,6 +289,14 @@ try {
                     لا توجد أذكار في هذا القسم.
                 </div>
             `;
+        } else if (isMobileAzkarList) {
+
+            // ====================================================
+            // عرض الهاتف — قائمة تفقّدية لكل أذكار القسم دفعة واحدة
+            // ====================================================
+
+            renderMobileChecklist();
+
         } else {
 
             // ====================================================

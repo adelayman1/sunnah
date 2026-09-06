@@ -1986,6 +1986,167 @@ body[data-theme="light"] .azkar-controls {
 }
 
 /* =========================================================
+   عرض الهاتف — قائمة تفقّدية لكل أذكار القسم (نفس هوية الموقع)
+   ========================================================= */
+.azkar-list-page {
+    padding-bottom: 0.4rem;
+}
+
+.azkar-list-tabs {
+    display: flex;
+    gap: 0.5rem;
+    overflow-x: auto;
+    padding: 0.2rem 0.1rem 1rem;
+    margin-top: 0.6rem;
+    scrollbar-width: none;
+}
+
+.azkar-list-tabs::-webkit-scrollbar {
+    display: none;
+}
+
+.azkar-list-tab {
+    flex: 0 0 auto;
+    padding: 0.55rem 1.1rem;
+    border-radius: 999px;
+    border: 1px solid var(--line-strong);
+    background: var(--surface-soft);
+    color: var(--muted);
+    font-weight: 700;
+    font-size: 0.86rem;
+    font-family: var(--font-main);
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.azkar-list-tab.active {
+    background: var(--blue);
+    border-color: var(--blue);
+    color: #fff;
+}
+
+.azkar-list-progress {
+    margin-top: 0.2rem;
+}
+
+.azkar-list-progress-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 0.55rem;
+    font-size: 0.84rem;
+    color: var(--muted);
+}
+
+.azkar-list-reset {
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-size: 0.8rem;
+    text-decoration: underline;
+    cursor: pointer;
+    font-family: var(--font-main);
+    padding: 0;
+}
+
+.azkar-steps {
+    position: relative;
+}
+
+.azkar-step {
+    position: relative;
+    padding: 0.2rem 0 1.3rem;
+    padding-right: 2.9rem;
+    border-right: 2px solid var(--line);
+    margin-right: 1.05rem;
+}
+
+.azkar-step:last-child {
+    border-color: transparent;
+    padding-bottom: 0.1rem;
+}
+
+.azkar-step-badge {
+    position: absolute;
+    right: -1.15rem;
+    top: 0;
+    width: 2.15rem;
+    height: 2.15rem;
+    border-radius: 0.65rem;
+    background: var(--panel);
+    border: 1px solid var(--card-border);
+    display: grid;
+    place-items: center;
+    font-size: 0.82rem;
+    font-weight: 800;
+    color: var(--muted);
+    font-family: var(--font-display);
+    transition: all 0.15s ease;
+}
+
+.azkar-step.done .azkar-step-badge {
+    background: var(--blue);
+    border-color: var(--blue);
+    color: #fff;
+}
+
+.azkar-step-card {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 1rem;
+    padding: 1rem 1.1rem;
+    box-shadow: var(--shadow);
+    cursor: pointer;
+    transition: border-color 0.15s ease, transform 0.08s ease;
+    user-select: none;
+}
+
+.azkar-step-card:active {
+    transform: scale(0.99);
+}
+
+.azkar-step.done .azkar-step-card {
+    border-color: var(--card-border-hover);
+}
+
+.azkar-step-text {
+    font-size: 1.02rem;
+    line-height: 2.05;
+    margin: 0;
+    font-weight: 600;
+}
+
+.azkar-step-extra {
+    font-size: 0.85rem;
+    color: var(--muted);
+    margin-top: 0.5rem;
+}
+
+.azkar-step-note {
+    margin-top: 0.8rem;
+    padding: 0.65rem 0.8rem;
+    border-radius: 0.65rem;
+    font-size: 0.84rem;
+    line-height: 1.85;
+    border: 1px solid var(--surface-soft-border);
+    background: var(--surface-soft);
+}
+
+.azkar-step-note-title {
+    font-weight: 800;
+    margin: 0 0 0.3rem;
+    color: var(--sky);
+}
+
+.azkar-list-hint {
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.8rem;
+    margin: 0.3rem 0 1.2rem;
+}
+
+/* =========================================================
    PWA Install Banner & Tooltip
    ========================================================= */
 .pwa-banner {
