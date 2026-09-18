@@ -52,7 +52,21 @@ function initAzkarPage() {
     if (typeof azkarCategories === "undefined") return;
 
     if (homeAzkarGrid) {
-        homeAzkarGrid.innerHTML = azkarCategories.map(azkarCategoryCardLegacy).join("");
+        const now = new Date();
+        const currentMinutes = now.getHours() * 60 + now.getMinutes();
+        // أذكار الصباح حتى 3:30 عصراً، وبعد 3:30 عصراً تبدأ أذكار المساء
+        const isMorning = currentMinutes >= (4 * 60) && currentMinutes < (15 * 60 + 30);
+        const targetCatId = isMorning ? "sabah" : "masaa";
+        const currentCat = azkarCategories.find(c => c.id === targetCatId) || azkarCategories[0];
+
+        if (currentCat) {
+            homeAzkarGrid.innerHTML = azkarCategoryCardLegacy(currentCat);
+        }
+
+        const homeAzkarBtn = document.getElementById("home-azkar-btn");
+        if (homeAzkarBtn) {
+            homeAzkarBtn.textContent = isMorning ? "عرض كل الأذكار" : "عرض كل الأقسام";
+        }
     }
 
     if (!azkarCategoryGrid) return;
