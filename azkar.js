@@ -71,14 +71,14 @@ function initAzkarPage() {
 
     if (!azkarCategoryGrid) return;
 
-    renderCategories(azkarCategories);
+    renderAzkarCategories(azkarCategories);
 
     const searchInput = document.getElementById("azkar-search-input");
     if (searchInput) {
         searchInput.addEventListener("input", (e) => {
             const query = e.target.value.trim().toLowerCase();
             if (!query) {
-                renderCategories(azkarCategories);
+                renderAzkarCategories(azkarCategories);
                 return;
             }
             const filtered = azkarCategories.filter(cat => {
@@ -87,12 +87,12 @@ function initAzkarPage() {
                 const itemsMatch = cat.items && cat.items.some(item => item.text && item.text.includes(query));
                 return titleMatch || descMatch || itemsMatch;
             });
-            renderCategories(filtered);
+            renderAzkarCategories(filtered);
         });
     }
 }
 
-function renderCategories(list) {
+function renderAzkarCategories(list) {
     if (!azkarCategoryGrid) return;
 
     if (list.length === 0) {
