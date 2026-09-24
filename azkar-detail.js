@@ -144,6 +144,13 @@ try {
                     badge.textContent = isDone ? "✓" : String(Math.max(repeat - arr[idx], 0));
                     stepDiv.appendChild(badge);
 
+                    // تحديث هذا الذكر فقط دون إعادة رسم بقية القائمة
+                    function updateStep() {
+                        const done = arr[idx] >= repeat;
+                        stepDiv.classList.toggle("done", done);
+                        badge.textContent = done ? "✓" : String(Math.max(repeat - arr[idx], 0));
+                    }
+
                     const card = document.createElement("div");
                     card.className = "azkar-step-card";
 
@@ -180,7 +187,7 @@ try {
                             vibrate([30, 40, 30]);
                             showMobileToast("أكملت الذِّكر ✓");
                         }
-                        renderSteps();
+                        updateStep();
                         updateProgress();
                     });
 
