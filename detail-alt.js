@@ -641,6 +641,7 @@ const sunnahs = [{
     id: "smt6bxhjhu7c223",
     title: "الإقعاء بين السجدتين",
     categoryName: "سنن الصلاة",
+    image: "images/iqaa-bayn-alsajdatayn.jpg",
     quickLinks: ["عرض المختصر", "النص الكامل", "السند", "سنن مشابهة"],
     tagline: "سنن الصلاة",
     brief: "عن أبو الزُّبَيْرِ أَنَّهُ سَمِعَ طَاوُسًا يَقُولُ قُلْنَا لاِبْنِ عَبَّاسٍ فِي الإِقْعَاءِ عَلَى الْقَدَمَيْنِ فَقَالَ هِيَ السُّنَّةُ. \nفَقُلْنَا لَهُ إِنَّا لَنَرَاهُ جَفَاءً بِالرَّجُلِ. \nفَقَالَ ابْنُ عَبَّاسٍ بَلْ هِيَ سُنَّةُ نَبِيِّكَ صَلَّى اللَّهُ عَلَيْهِ وَسَلَّمَ",
@@ -728,9 +729,11 @@ const sunnahs = [{
 ];
 
 // ============================================================
-// Toast Notification & Favorites for Detail Page
+// State & Storage Keys
 // ============================================================
 const FAVORITES_KEY = "sunnah_favorites_v1";
+const FONT_SCALE_KEY = "sunnah_font_scale_v1";
+const detailAltPage = document.getElementById("detail-alt-page");
 
 function getFavorites() {
     try {
@@ -750,42 +753,131 @@ function showToast(message) {
     }
     toast.textContent = message;
     toast.classList.add("show");
-    setTimeout(() => {
+    clearTimeout(showToast._timer);
+    showToast._timer = setTimeout(() => {
         toast.classList.remove("show");
     }, 2800);
 }
+window.showToast = showToast;
 
 function toggleSunnahFav(id) {
     let favs = getFavorites();
-    if (favs.includes(id)) {
+    const exists = favs.includes(id);
+    if (exists) {
         favs = favs.filter((fId) => fId !== id);
-        showToast("تمت إزالة السنة من المحفوظات ");
+        showToast("تمت إزالة السنة من المحفوظات");
     } else {
         favs.push(id);
-        showToast("تمت إضافة السنة إلى المحفوظات ");
+        showToast("تم حفظ السنة في المفضلة");
     }
     localStorage.setItem(FAVORITES_KEY, JSON.stringify(favs));
     renderDetail();
 }
 window.toggleSunnahFav = toggleSunnahFav;
 
-const detailAltPage = document.getElementById("detail-alt-page");
-const params = new URLSearchParams(window.location.search);
-const id = params.get("id");
-const item = sunnahs.find((entry) => entry.id === id) || sunnahs[0];
+// ============================================================
+// Font Scaling & Focus Reading Mode
+// ============================================================
+function initFontScale() {
+    const saved = localStorage.getItem(FONT_SCALE_KEY);
+    if (saved) {
+        document.documentElement.style.setProperty("--detail-font-scale", saved);
+    }
+}
+
+function adjustFontSize(delta) {
+    let current = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--detail-font-scale")) || 1;
+    if (delta === 0) {
+        current = 1;
+    } else {
+        current = Math.min(1.4, Math.max(0.85, current + delta * 0.12));
+    }
+    document.documentElement.style.setProperty("--detail-font-scale", current.toFixed(2));
+    localStorage.setItem(FONT_SCALE_KEY, current.toFixed(2));
+    showToast(delta === 0 ? "تمت استعادة حجم الخط الافتراضي" : delta > 0 ? "تم تكبير الخط A+" : "تم تصغير الخط A-");
+    renderDetail();
+}
+window.adjustFontSize = adjustFontSize;
+
+function toggleReadingMode() {
+    document.body.classList.toggle("focus-reading-mode");
+    const isFocus = document.body.classList.contains("focus-reading-mode");
+    showToast(isFocus ? "تم تفعيل وضع القراءة المركزة" : "تم إيقاف وضع القراءة المركزة");
+    renderDetail();
+}
+window.toggleReadingMode = toggleReadingMode;
+
+// ============================================================
+// Current Item & Navigation
+// ============================================================
+function getCurrentItem() {
+    const params = new URLSearchParams(window.location.search);
+    const id = params.get("id");
+    return sunnahs.find((entry) => entry.id === id) || sunnahs[0];
+}
 
 function copySunnahDetail() {
+    const item = getCurrentItem();
     if (!item) return;
     const contentText = item.fullText || item.brief || "";
-    const textToCopy = `${item.title}\n\n${contentText}\n\nالمصدر: موقع السنن المهجورة`;
+    const sourceText = item.chain ? `\nالمصدر: ${item.chain}` : "";
+    const textToCopy = `سنة مهجورة: ${item.title}\n\n«${contentText}»${sourceText}\n\nموقع السنن المهجورة: ${window.location.href}`;
     navigator.clipboard.writeText(textToCopy).then(() => {
-        showToast("تم نسخ نص السنة بنجاح");
+        showToast("تم نسخ نص السنة والمصدر بنجاح 📋");
     }).catch(() => {
         showToast("تعذر النسخ تلقائيًا");
     });
 }
 window.copySunnahDetail = copySunnahDetail;
 
+function copyHadithOnly() {
+    const item = getCurrentItem();
+    if (!item) return;
+    const contentText = item.fullText || item.brief || "";
+    navigator.clipboard.writeText(`«${contentText}»`).then(() => {
+        showToast("تم نسخ متن الحديث");
+    }).catch(() => {
+        showToast("تعذر النسخ");
+    });
+}
+window.copyHadithOnly = copyHadithOnly;
+
+// ============================================================
+// Image Lightbox Modal
+// ============================================================
+function openImageLightbox(src, alt) {
+    let box = document.getElementById("sunnah-lightbox-modal");
+    if (box) box.remove();
+
+    box = document.createElement("div");
+    box.id = "sunnah-lightbox-modal";
+    box.className = "share-modal-overlay";
+    box.style.display = "flex";
+    box.innerHTML = `
+        <div class="share-modal-box" style="max-width: 820px; padding: 1.5rem;">
+            <div class="share-modal-header" style="margin-bottom: 1rem;">
+                <h3>${alt || "صورة توضيحية"}</h3>
+                <button class="share-modal-close" onclick="closeImageLightbox()" type="button" aria-label="إغلاق">✕</button>
+            </div>
+            <img src="${src}" alt="${alt}" style="width: 100%; border-radius: 14px; max-height: 75vh; object-fit: contain; background: #000;" />
+        </div>
+    `;
+    document.body.appendChild(box);
+    box.addEventListener("click", (e) => {
+        if (e.target === box) closeImageLightbox();
+    });
+}
+window.openImageLightbox = openImageLightbox;
+
+function closeImageLightbox() {
+    const box = document.getElementById("sunnah-lightbox-modal");
+    if (box) box.remove();
+}
+window.closeImageLightbox = closeImageLightbox;
+
+// ============================================================
+// Canvas Share Card Generator (High Definition)
+// ============================================================
 function wrapCanvasText(ctx, text, maxWidth) {
     if (!text) return [];
     const words = text.split(" ");
@@ -813,34 +905,31 @@ function generateSunnahCardImage(item) {
         const width = 1080;
         const isLight = document.body.dataset.theme === "light";
 
-        // Priority: fullText > brief
         const fullHadithText = (item.fullText && item.fullText.trim() !== "")
             ? item.fullText
             : (item.brief || "");
 
         const chainText = (item.chain && item.chain.trim() !== "") ? item.chain : "";
 
-        // Measure text for dynamic height
         const tempCanvas = document.createElement("canvas");
         const tempCtx = tempCanvas.getContext("2d");
         const cardW = width - 100;
-        const textMaxWidth = cardW - 90;
+        const textMaxWidth = cardW - 100;
 
         tempCtx.font = "bold 44px 'ThmanyahSans', 'IBM Plex Sans Arabic', sans-serif";
         const titleLines = wrapCanvasText(tempCtx, item.title || "", textMaxWidth);
 
-        tempCtx.font = "34px 'ThmanyahSans', 'IBM Plex Sans Arabic', sans-serif";
+        tempCtx.font = "32px 'ThmanyahSans', 'IBM Plex Sans Arabic', sans-serif";
         const textLines = wrapCanvasText(tempCtx, fullHadithText, textMaxWidth);
 
-        tempCtx.font = "28px 'ThmanyahSans', 'IBM Plex Sans Arabic', sans-serif";
-        const chainLines = chainText ? wrapCanvasText(tempCtx, "المصدر/السند: " + chainText, textMaxWidth) : [];
+        tempCtx.font = "26px 'ThmanyahSans', 'IBM Plex Sans Arabic', sans-serif";
+        const chainLines = chainText ? wrapCanvasText(tempCtx, "المصدر / التخريج: " + chainText, textMaxWidth) : [];
 
-        // Dynamic height calculation
         const titleHeight = titleLines.length * 56;
         const textHeight = textLines.length * 52 + 50;
         const chainHeight = chainLines.length ? (chainLines.length * 42 + 30) : 0;
 
-        let calculatedHeight = 180 + titleHeight + 30 + textHeight + chainHeight + 120;
+        let calculatedHeight = 220 + titleHeight + 30 + textHeight + chainHeight + 140;
         const height = Math.max(1080, calculatedHeight);
 
         const canvas = document.createElement("canvas");
@@ -848,14 +937,14 @@ function generateSunnahCardImage(item) {
         canvas.height = height;
         const ctx = canvas.getContext("2d");
 
-        // 1. Background Gradient
+        // Background
         const bgGrad = ctx.createLinearGradient(0, 0, 0, height);
         if (isLight) {
             bgGrad.addColorStop(0, "#f8fafc");
             bgGrad.addColorStop(1, "#e2e8f0");
         } else {
-            bgGrad.addColorStop(0, "#0b1226");
-            bgGrad.addColorStop(0.5, "#0f172a");
+            bgGrad.addColorStop(0, "#080f1e");
+            bgGrad.addColorStop(0.5, "#0b1426");
             bgGrad.addColorStop(1, "#020617");
         }
         ctx.fillStyle = bgGrad;
@@ -863,17 +952,12 @@ function generateSunnahCardImage(item) {
 
         // Glow
         const glow = ctx.createRadialGradient(width / 2, 220, 50, width / 2, 220, height * 0.6);
-        if (isLight) {
-            glow.addColorStop(0, "rgba(37, 99, 235, 0.12)");
-            glow.addColorStop(1, "transparent");
-        } else {
-            glow.addColorStop(0, "rgba(37, 99, 235, 0.28)");
-            glow.addColorStop(1, "transparent");
-        }
+        glow.addColorStop(0, isLight ? "rgba(37, 99, 235, 0.12)" : "rgba(37, 99, 235, 0.28)");
+        glow.addColorStop(1, "transparent");
         ctx.fillStyle = glow;
         ctx.fillRect(0, 0, width, height);
 
-        // 2. Card Container
+        // Main Card
         const padding = 50;
         const cardH = height - padding * 2;
         const cardX = padding;
@@ -886,10 +970,10 @@ function generateSunnahCardImage(item) {
         } else {
             ctx.rect(cardX, cardY, cardW, cardH);
         }
-        ctx.fillStyle = isLight ? "rgba(255, 255, 255, 0.92)" : "rgba(15, 24, 43, 0.88)";
+        ctx.fillStyle = isLight ? "rgba(255, 255, 255, 0.94)" : "rgba(15, 23, 42, 0.92)";
         ctx.fill();
 
-        ctx.lineWidth = 3;
+        ctx.lineWidth = 2.5;
         const borderGrad = ctx.createLinearGradient(cardX, cardY, cardX + cardW, cardY + cardH);
         borderGrad.addColorStop(0, "rgba(96, 165, 250, 0.6)");
         borderGrad.addColorStop(0.5, "rgba(37, 99, 235, 0.25)");
@@ -898,18 +982,18 @@ function generateSunnahCardImage(item) {
         ctx.stroke();
         ctx.restore();
 
-        // 3. Category Tag Badge
-        const catText = item.categoryName || "سنة مهجورة";
+        // Top Badge
+        const catText = item.categoryName || "سنة نبوية";
         ctx.font = "bold 26px 'ThmanyahSans', 'IBM Plex Sans Arabic', sans-serif";
         const catWidth = ctx.measureText(catText).width + 44;
         const badgeX = cardX + cardW - catWidth - 40;
         const badgeY = cardY + 45;
-        const badgeH = 44;
+        const badgeH = 46;
 
         ctx.save();
         ctx.beginPath();
         if (ctx.roundRect) {
-            ctx.roundRect(badgeX, badgeY, catWidth, badgeH, 22);
+            ctx.roundRect(badgeX, badgeY, catWidth, badgeH, 23);
         } else {
             ctx.rect(badgeX, badgeY, catWidth, badgeH);
         }
@@ -925,89 +1009,88 @@ function generateSunnahCardImage(item) {
         ctx.fillText(catText, badgeX + catWidth / 2, badgeY + badgeH / 2 + 2);
         ctx.restore();
 
-        // 4. Branding Top Left (NO SPARKLE EMOJI)
+        // Project Branding
         ctx.save();
         ctx.fillStyle = isLight ? "#2563eb" : "#3b82f6";
         ctx.font = "bold 32px 'ThmanyahSans', 'IBM Plex Sans Arabic', sans-serif";
         ctx.textAlign = "left";
-        ctx.fillText("السنن المهجورة", cardX + 40, badgeY + badgeH / 2 + 2);
+        ctx.fillText("السنن المهجورة", cardX + 45, badgeY + badgeH / 2 + 2);
         ctx.restore();
 
         // Divider
         ctx.strokeStyle = isLight ? "rgba(148, 163, 184, 0.3)" : "rgba(148, 163, 184, 0.2)";
         ctx.lineWidth = 1.5;
         ctx.beginPath();
-        ctx.moveTo(cardX + 40, cardY + 115);
-        ctx.lineTo(cardX + cardW - 40, cardY + 115);
+        ctx.moveTo(cardX + 45, cardY + 120);
+        ctx.lineTo(cardX + cardW - 45, cardY + 120);
         ctx.stroke();
 
-        // 5. Title
-        let currentY = cardY + 185;
+        // Title
+        let currentY = cardY + 190;
         ctx.fillStyle = isLight ? "#0f172a" : "#f8fafc";
         ctx.font = "bold 44px 'ThmanyahSans', 'IBM Plex Sans Arabic', sans-serif";
         ctx.textAlign = "right";
 
         titleLines.forEach((line) => {
-            ctx.fillText(line, cardX + cardW - 40, currentY);
+            ctx.fillText(line, cardX + cardW - 45, currentY);
             currentY += 56;
         });
 
         currentY += 20;
 
-        // 6. Hadith Text Container Box
+        // Hadith Box
         const boxStartY = currentY - 10;
-        const boxPadding = 25;
+        const boxPadding = 30;
         const boxHeight = (textLines.length * 52) + boxPadding * 2;
 
         ctx.save();
         ctx.beginPath();
         if (ctx.roundRect) {
-            ctx.roundRect(cardX + 30, boxStartY, cardW - 60, boxHeight, 20);
+            ctx.roundRect(cardX + 35, boxStartY, cardW - 70, boxHeight, 22);
         } else {
-            ctx.rect(cardX + 30, boxStartY, cardW - 60, boxHeight);
+            ctx.rect(cardX + 35, boxStartY, cardW - 70, boxHeight);
         }
-        ctx.fillStyle = isLight ? "rgba(241, 245, 249, 0.7)" : "rgba(30, 41, 59, 0.5)";
+        ctx.fillStyle = isLight ? "rgba(241, 245, 249, 0.8)" : "rgba(30, 41, 59, 0.55)";
         ctx.fill();
-        ctx.strokeStyle = isLight ? "rgba(203, 213, 225, 0.6)" : "rgba(51, 65, 85, 0.6)";
-        ctx.lineWidth = 1;
+        ctx.strokeStyle = isLight ? "rgba(203, 213, 225, 0.7)" : "rgba(51, 65, 85, 0.7)";
+        ctx.lineWidth = 1.2;
         ctx.stroke();
         ctx.restore();
 
-        // Full Hadith Text Render
         currentY += boxPadding + 15;
-        ctx.font = "34px 'ThmanyahSans', 'IBM Plex Sans Arabic', sans-serif";
+        ctx.font = "32px 'ThmanyahSans', 'IBM Plex Sans Arabic', sans-serif";
         ctx.fillStyle = isLight ? "#1e293b" : "#e2e8f0";
 
         textLines.forEach((line) => {
-            ctx.fillText(line, cardX + cardW - 55, currentY);
+            ctx.fillText(line, cardX + cardW - 65, currentY);
             currentY += 52;
         });
 
-        currentY = boxStartY + boxHeight + 35;
+        currentY = boxStartY + boxHeight + 40;
 
-        // 7. Chain / Source
+        // Chain
         if (chainLines.length) {
-            ctx.font = "28px 'ThmanyahSans', 'IBM Plex Sans Arabic', sans-serif";
+            ctx.font = "bold 26px 'ThmanyahSans', 'IBM Plex Sans Arabic', sans-serif";
             ctx.fillStyle = isLight ? "#2563eb" : "#60a5fa";
             chainLines.forEach((line) => {
-                ctx.fillText(line, cardX + cardW - 40, currentY);
+                ctx.fillText(line, cardX + cardW - 45, currentY);
                 currentY += 42;
             });
             currentY += 20;
         }
 
-        // 8. Footer
+        // Footer
         const footerY = cardY + cardH - 45;
         ctx.strokeStyle = isLight ? "rgba(148, 163, 184, 0.3)" : "rgba(148, 163, 184, 0.2)";
         ctx.beginPath();
-        ctx.moveTo(cardX + 40, footerY - 35);
-        ctx.lineTo(cardX + cardW - 40, footerY - 35);
+        ctx.moveTo(cardX + 45, footerY - 35);
+        ctx.lineTo(cardX + cardW - 45, footerY - 35);
         ctx.stroke();
 
         ctx.font = "bold 26px 'ThmanyahSans', 'IBM Plex Sans Arabic', sans-serif";
         ctx.fillStyle = isLight ? "#2563eb" : "#60a5fa";
         ctx.textAlign = "center";
-        ctx.fillText("مشروع السنن المهجورة — شارك تؤجر 🌿", width / 2, footerY);
+        ctx.fillText("مشروع السنن المهجورة — شارك تؤجر", width / 2, footerY);
 
         canvas.toBlob((blob) => {
             resolve({ blob, dataUrl: canvas.toDataURL("image/png") });
@@ -1017,9 +1100,7 @@ function generateSunnahCardImage(item) {
 
 function showShareImageModalDetail(item, dataUrl, blob) {
     let overlay = document.getElementById("share-modal-overlay");
-    if (overlay) {
-        overlay.remove();
-    }
+    if (overlay) overlay.remove();
 
     overlay = document.createElement("div");
     overlay.id = "share-modal-overlay";
@@ -1059,21 +1140,18 @@ function showShareImageModalDetail(item, dataUrl, blob) {
     }
 
     overlay.addEventListener("click", (e) => {
-        if (e.target === overlay) {
-            closeShareModal();
-        }
+        if (e.target === overlay) closeShareModal();
     });
 }
 
 function closeShareModal() {
     const overlay = document.getElementById("share-modal-overlay");
-    if (overlay) {
-        overlay.remove();
-    }
+    if (overlay) overlay.remove();
 }
 window.closeShareModal = closeShareModal;
 
 async function shareSunnahDetail() {
+    const item = getCurrentItem();
     if (!item) return;
 
     showToast("جاري تجهيز بطاقة الصورة...");
@@ -1088,76 +1166,190 @@ async function shareSunnahDetail() {
 }
 window.shareSunnahDetail = shareSunnahDetail;
 
+// ============================================================
+// Render Detail Page
+// ============================================================
 function renderDetail() {
-    if (!detailAltPage || !item) return;
+    if (!detailAltPage) return;
+
+    const item = getCurrentItem();
+    if (!item) return;
+
+    const currentIndex = sunnahs.findIndex((s) => s.id === item.id);
+    const prevSunnah = currentIndex > 0 ? sunnahs[currentIndex - 1] : sunnahs[sunnahs.length - 1];
+    const nextSunnah = currentIndex < sunnahs.length - 1 ? sunnahs[currentIndex + 1] : sunnahs[0];
+
+    // Related Sunan from same category or others
+    const relatedSunan = sunnahs
+        .filter((s) => s.id !== item.id && s.categoryName === item.categoryName)
+        .slice(0, 3);
+    const fallbackRelated = relatedSunan.length >= 2 ? relatedSunan : sunnahs.filter((s) => s.id !== item.id).slice(0, 3);
 
     const favs = getFavorites();
     const isFav = favs.includes(item.id);
-    const favClass = isFav ? "is-fav" : "";
 
-    // Show full text card if fullText exists and differs from brief
-    const hasFullText = item.fullText && item.fullText.trim() !== "" && item.fullText.trim() !== (item.brief || "").trim();
-    // Show chain if present and not placeholder
-    const hasChain = item.chain && item.chain.trim() !== "";
-    // Show related if array is not empty
-    const hasRelated = Array.isArray(item.related) && item.related.length > 0;
+    // Text content logic
+    const hadithText = (item.fullText && item.fullText.trim() !== "") ? item.fullText : (item.brief || "");
+    const hasBriefDifferent = item.brief && item.brief.trim() !== "" && item.brief.trim() !== (item.fullText || "").trim();
+    const hasChain = Boolean(item.chain && item.chain.trim() !== "" && !item.chain.includes("نص مثال"));
+    const hasImage = Boolean(item.image);
 
     detailAltPage.innerHTML = `
-      <a class="back-link" href="index.html#all-cards">← العودة إلى قائمة السنن</a>
-
       <div class="sunnah-detail-wrapper">
-        <!-- Header -->
+
+        <!-- Top Navigation & Breadcrumb -->
+        <div class="sunnah-top-nav-bar">
+          <a class="sunnah-back-pill" href="index.html#all-cards">
+            <svg viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg>
+            العودة للسنن
+          </a>
+          <nav class="sunnah-breadcrumbs" aria-label="مسار التصفح">
+            <a href="index.html">الرئيسية</a>
+            <span class="crumb-sep">/</span>
+            <a href="index.html#all-cards">السنن</a>
+            <span class="crumb-sep">/</span>
+            <span class="current-crumb">${item.categoryName || "تفاصيل السنة"}</span>
+          </nav>
+        </div>
+
+        <!-- Header Section -->
         <header class="sunnah-detail-header">
-          <div class="sunnah-detail-meta">
-            <span class="category-tag">${item.categoryName || "سُنّة نبوية"}</span>
-            <div class="sunnah-header-actions">
-              <button class="fav-btn ${favClass}" onclick="toggleSunnahFav('${item.id}')" title="حفظ في المحفوظات" type="button">
+          <div class="sunnah-detail-meta-bar">
+            <div class="sunnah-meta-pills">
+              <span class="category-tag luxury-tag">${item.categoryName || "سُنّة نبوية"}</span>
+            </div>
+
+            <!-- Action Toolbar -->
+            <div class="sunnah-actions-toolbar">
+              <button class="luxury-action-btn fav-btn ${isFav ? 'is-fav' : ''}" onclick="toggleSunnahFav('${item.id}')" title="حفظ في المفضلة" aria-label="حفظ في المفضلة" type="button">
                 <svg viewBox="0 0 24 24"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
               </button>
-              <button class="action-icon-btn" onclick="copySunnahDetail()" title="نسخ النص" type="button">
+
+              <button class="luxury-action-btn" onclick="copySunnahDetail()" title="نسخ نص السنة والمصدر" type="button">
                 <svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                <span>نسخ</span>
               </button>
-              <button class="action-icon-btn" onclick="shareSunnahDetail()" title="مشاركة" type="button">
+
+              <button class="luxury-action-btn" onclick="shareSunnahDetail()" title="مشاركة كبطاقة صورة" type="button">
                 <svg viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+                <span>مشاركة</span>
+              </button>
+
+              <!-- Font Resizer Group -->
+              <div class="font-ctrl-group" title="التحكم بحجم الخط">
+                <button class="font-ctrl-btn" onclick="adjustFontSize(-1)" type="button">A-</button>
+                <button class="font-ctrl-btn" onclick="adjustFontSize(0)" type="button">A</button>
+                <button class="font-ctrl-btn" onclick="adjustFontSize(1)" type="button">A+</button>
+              </div>
+
+              <!-- Focus Reading Mode -->
+              <button class="luxury-action-btn" onclick="toggleReadingMode()" title="وضع القراءة الهادئ" type="button">
+                <svg viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
               </button>
             </div>
           </div>
+
           <h1 class="sunnah-detail-title">${item.title}</h1>
         </header>
 
-        <!-- Brief Box -->
-        ${item.brief ? `
-        <section class="sunnah-brief-card">
-          <span class="brief-badge">مختصر</span>
-          <p class="brief-text">${item.brief}</p>
-        </section>
-        ` : ''}
+        <!-- Main Hadith Showcase Card -->
+        <article class="hadith-hero-card">
+          <div class="hadith-card-header">
+            <span class="hadith-badge-label">
+              <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+المتن
+            </span>
+            <button class="hadith-quick-copy" onclick="copyHadithOnly()" type="button" title="نسخ نص الحديث فقط">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              نسخ الحديث
+            </button>
+          </div>
 
-        <!-- Details Grid -->
-        <div class="sunnah-sections-grid">
-          ${hasFullText ? `
-          <article class="alt-grid-card">
-            <h3> الحديث والنص الكامل</h3>
-            <div class="detail-text soft">${item.fullText}</div>
-          </article>
+          <div class="hadith-quote-content">
+            <p class="hadith-text">${hadithText}</p>
+          </div>
+
+          ${hasImage ? `
+          <div class="sunnah-image-showcase">
+            <img src="${item.image}" alt="${item.title}" onclick="openImageLightbox('${item.image}', '${item.title}')" />
+            <div class="sunnah-image-caption">
+              <span>انقر على الصورة لتكبيرها وعرضها بوضوح</span>
+            </div>
+          </div>
+          ` : ''}
+        </article>
+
+        <!-- Explanatory Details Grid -->
+        <div class="sunnah-grid-details">
+          ${hasBriefDifferent ? `
+          <div class="sunnah-detail-card">
+            <h3 class="sunnah-card-title">
+              كيف تطبق هذه السنة؟
+            </h3>
+            <p class="sunnah-card-body">${item.brief}</p>
+          </div>
           ` : ''}
 
           ${hasChain ? `
-          <article class="alt-grid-card">
-            <h3>المصدر</h3>
-            <div class="detail-text soft">${item.chain}</div>
-          </article>
-          ` : ''}
-
-          ${hasRelated ? `
-          <article class="alt-grid-card">
-            <h3>🔗 سنن ذات صلة</h3>
-            <div class="detail-text soft">${item.related.map(r => `• ${r}`).join("<br>")}</div>
-          </article>
+          <div class="sunnah-detail-card">
+            <h3 class="sunnah-card-title">
+              المصدر والتخريج
+            </h3>
+            <div class="sunnah-card-body verified-source">
+              <span class="verified-stamp">موثّق</span>
+              <span>${item.chain}</span>
+            </div>
+          </div>
           ` : ''}
         </div>
+
+        <!-- Virtue / Merit Banner -->
+        <div class="sunnah-merit-banner">
+          <p class="merit-text">
+            <strong>فضل إحياء السنن المهجورة:</strong> قال رسول الله ﷺ: «مَنْ أَحْيَا سُنَّةً مِنْ سُنَّتِي فَعَمِلَ بِهَا النَّاسُ كَانَ لَهُ مِثْلُ أَجْرِ مَنْ عَمِلَ بِهَا، لَا يَنْقُصُ مِنْ أُجُورِهِمْ شَيْئًا».
+          </p>
+        </div>
+
+        <!-- Previous & Next Sunnah Navigator -->
+        <div class="sunnah-pagination-container">
+          <a class="sunnah-nav-card prev-card" href="details-alt.html?id=${encodeURIComponent(prevSunnah.id)}">
+            <span class="nav-card-label">← السنة السابقة</span>
+            <span class="nav-card-title">${prevSunnah.title}</span>
+          </a>
+          <a class="sunnah-nav-card next-card" href="details-alt.html?id=${encodeURIComponent(nextSunnah.id)}">
+            <span class="nav-card-label">السنة التالية →</span>
+            <span class="nav-card-title">${nextSunnah.title}</span>
+          </a>
+        </div>
+
+        <!-- Related Sunan Section -->
+        ${fallbackRelated.length > 0 ? `
+        <section class="related-sunan-block">
+          <h2 class="related-section-title">
+سنن أخري
+          </h2>
+          <div class="related-cards-grid">
+            ${fallbackRelated.map(rel => `
+              <a class="related-mini-card" href="details-alt.html?id=${encodeURIComponent(rel.id)}">
+                <div>
+                  <span class="related-mini-category">${rel.categoryName || "سنة"}</span>
+                  <h4 class="related-mini-title">${rel.title}</h4>
+                </div>
+                <div class="related-mini-footer">عرض السنة ←</div>
+              </a>
+            `).join("")}
+          </div>
+        </section>
+        ` : ''}
+
       </div>
+
     `;
+
+    // Update document title dynamically
+    document.title = `${item.title} — السنن المهجورة`;
 }
 
+// Initial Call
+initFontScale();
 renderDetail();
